@@ -1,0 +1,77 @@
+Subject: [PATCH] vspm: adapt to kernel 6.18 ccflags-y and void platform
+ remove()
+
+Modern Kbuild no longer honours the legacy EXTRA_CFLAGS variable, so the
+Makefile's -I../include never reached the compiler and vspm_public.h could
+not be found; switched to ccflags-y. Kernel 6.18 also requires
+platform_driver.remove to return void, not int (three drivers here: vsp,
+fdp, isu).
+
+Verified by a live cross-build against branch
+ubuntu/rz-v2h-rdk-rebase-6.18.20.
+---
+--- a/vspm-module/files/vspm/drv/Makefile
++++ b/vspm-module/files/vspm/drv/Makefile
+@@ -11,7 +11,7 @@
+
+ U_INCLUDE := -I$(PWD)
+ U_INCLUDE += -I$(PWD)/../include
+-EXTRA_CFLAGS += $(U_INCLUDE)
++ccflags-y += $(U_INCLUDE)
+
+ all:
+ 	make -C $(KERNELSRC) M=$(PWD) modules
+--- a/vspm-module/files/vspm/drv/vspm_main.c
++++ b/vspm-module/files/vspm/drv/vspm_main.c
+@@ -343,7 +343,7 @@
+ 	return 0;
+ }
+
+-static int vspm_vsp_remove(struct platform_device *pdev)
++static void vspm_vsp_remove(struct platform_device *pdev)
+ {
+ 	struct vspm_drvdata *pdrv = p_vspm_drvdata;
+ 	struct device_node *np = pdev->dev.of_node;
+@@ -364,8 +364,6 @@
+ 	/* unset clocks */
+ 	for (i = 0; i < CLKNUM; i++)
+ 		pdrv->vsp_clks[ch][i] = NULL;
+-
+-	return 0;
+ }
+
+ static int vspm_fdp_probe(struct platform_device *pdev)
+@@ -419,7 +417,7 @@
+ 	return 0;
+ }
+
+-static int vspm_fdp_remove(struct platform_device *pdev)
++static void vspm_fdp_remove(struct platform_device *pdev)
+ {
+ 	struct vspm_drvdata *pdrv = p_vspm_drvdata;
+ 	struct device_node *np = pdev->dev.of_node;
+@@ -440,8 +438,6 @@
+ 	/* unset clocks */
+ 	for (i = 0; i < CLKNUM; i++)
+ 		pdrv->fdp_clks[ch][i] = NULL;
+-
+-	return 0;
+ }
+
+ static int vspm_isu_probe(struct platform_device *pdev)
+@@ -504,7 +500,7 @@
+ 	return 0;
+ }
+
+-static int vspm_isu_remove(struct platform_device *pdev)
++static void vspm_isu_remove(struct platform_device *pdev)
+ {
+ 	struct vspm_drvdata *pdrv = p_vspm_drvdata;
+ 	struct device_node *np = pdev->dev.of_node;
+@@ -525,8 +521,6 @@
+ 	/* unset clocks */
+ 	for (i = 0; i < CLKNUM; i++)
+ 		pdrv->isu_clks[ch][i] = NULL;
+-
+-	return 0;
+ }

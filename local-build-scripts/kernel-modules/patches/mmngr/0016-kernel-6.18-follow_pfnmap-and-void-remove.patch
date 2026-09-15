@@ -1,0 +1,73 @@
+Subject: [PATCH] mmngr: adapt to kernel 6.18 follow_pte removal and void
+ platform remove()
+
+Kernel 6.18 removes follow_pte() in favour of follow_pfnmap_start()/
+follow_pfnmap_end() (struct follow_pfnmap_args), and platform_driver's
+.remove callback must now return void instead of int.
+
+Verified by a live cross-build against branch
+ubuntu/rz-v2h-rdk-rebase-6.18.20 (vermagic 6.18.20-yocto-standard+ ...
+aarch64).
+---
+--- a/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c
++++ b/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c
+@@ -848,20 +848,22 @@
+ 	struct mm_struct *mm = current->mm;
+ 	unsigned long start;
+ 	unsigned long pfn;
+-	pte_t *ptep;
+-	spinlock_t *ptl;
+-	int lp = 0;
++	struct follow_pfnmap_args args = { 0 };
+ 	int ret = 0;
+
+ 	mmap_read_lock(mm);
+ 	vma = find_vma(mm, tmp->user_virt_addr);
+ 	start = tmp->user_virt_addr & PAGE_MASK;
+-	ret = follow_pte(vma, start, &ptep, &ptl);
+-	if(ret != 0)
+-		 pr_warn("Could not convert virt[%p] addr", tmp->user_virt_addr);
+-	pfn = pte_pfn(ptep_get(ptep));
+-	pte_unmap_unlock(ptep, ptl);
+-	tmp->hard_addr = pfn << PAGE_SHIFT;
++	args.vma = vma;
++	args.address = start;
++	ret = follow_pfnmap_start(&args);
++	if (ret != 0) {
++		pr_warn("Could not convert virt[%p] addr", (void *)tmp->user_virt_addr);
++	} else {
++		pfn = args.pfn;
++		follow_pfnmap_end(&args);
++		tmp->hard_addr = pfn << PAGE_SHIFT;
++	}
+ 	mmap_read_unlock(mm);
+
+ 	return;
+@@ -1795,7 +1797,7 @@
+ 	return -1;
+ }
+
+-static int mm_remove(struct platform_device *pdev)
++static void mm_remove(struct platform_device *pdev)
+ {
+ 	u32 i;
+
+@@ -1827,8 +1829,6 @@
+ 			(dma_addr_t)mm_drvdata->reserve_phy_addr);
+
+ 	kfree(mm_drvdata);
+-
+-	return 0;
+ }
+
+ static const struct of_device_id mm_of_match[] = {
+--- a/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h
++++ b/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h
+@@ -176,7 +176,7 @@
+ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+ static int mmap(struct file *filp, struct vm_area_struct *vma);
+ static int mm_probe(struct platform_device *pdev);
+-static int mm_remove(struct platform_device *pdev);
++static void mm_remove(struct platform_device *pdev);
+ static int mm_init(void);
+ static void mm_exit(void);

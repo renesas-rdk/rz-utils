@@ -1,0 +1,44 @@
+Subject: [PATCH] mmngrbuf: adapt to kernel 6.18 void platform remove() and
+ string MODULE_IMPORT_NS
+
+Kernel 6.18 requires platform_driver.remove to return void, and
+MODULE_IMPORT_NS() now takes the namespace as a string literal instead of a
+bare token.
+
+Verified by a live cross-build against branch
+ubuntu/rz-v2h-rdk-rebase-6.18.20.
+---
+--- a/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c
++++ b/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c
+@@ -411,13 +411,11 @@
+ 	return 0;
+ }
+
+-static int mm_remove(struct platform_device *pdev)
++static void mm_remove(struct platform_device *pdev)
+ {
+ 	misc_deregister(&misc);
+
+ 	kfree(mm_buf_drvdata);
+-
+-	return 0;
+ }
+
+ static const struct of_device_id mm_of_match[] = {
+@@ -449,4 +447,4 @@
+ module_exit(mm_exit);
+
+ MODULE_LICENSE("Dual MIT/GPL");
+-MODULE_IMPORT_NS(DMA_BUF);
++MODULE_IMPORT_NS("DMA_BUF");
+--- a/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/include/mmngr_buf_private.h
++++ b/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/include/mmngr_buf_private.h
+@@ -102,7 +102,7 @@
+ static int dmabuf_vmap(struct dma_buf *buf, struct iosys_map *map);
+ static void dmabuf_vunmap(struct dma_buf *buf, struct iosys_map *map);
+ static int mm_probe(struct platform_device *pdev);
+-static int mm_remove(struct platform_device *pdev);
++static void mm_remove(struct platform_device *pdev);
+ static int mm_init(void);
+ static void mm_exit(void);
+ static int mm_ioc_export_start(int __user *arg, struct MM_BUF_PRIVATE *priv);
