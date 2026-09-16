@@ -15,6 +15,7 @@ kernel-modules/
 ├── build_vspm.sh
 ├── build_vspm_if.sh     # depends on vspm being built first
 ├── build_mali_kbase.sh  # needs a local copy of the proprietary Mali DDK tarball (see below)
+├── build_88x2bu.sh      # WiFi: RTL8812BU/8822BU USB dongle, not in the extra/ deb set
 └── patches/<name>/      # per-module patch series (series file + .patch files)
 ```
 
@@ -66,6 +67,12 @@ hardware** (over the board's serial console, kernel `6.18.20-yocto-standard+`):
 
 `uvcs_drv` is not yet scripted (see above) — the only module in the `extra/` set left to do.
 
+`88x2bu` (`build_88x2bu.sh`) built clean (no kernel-6.18 patch needed) against a `git worktree` of
+`ubuntu/rz-v2h-rdk-rebase-6.18.20` and installs correctly, but is **not yet `insmod`-tested on real
+hardware** — the board was unreachable this session — and it is not yet confirmed the V2H RDK
+actually carries an RTL8812BU dongle (the only chip mainline `rtw88` does not already cover; see
+below).
+
 ## Kernel-6.18 API breaks found so far
 
 Patches carried from the kernel-6.10-era `rz-utils-ext-modules` prototype (see
@@ -101,3 +108,28 @@ guaranteed to still compile against 6.18.20, and in practice every module needed
   approach emptied the whole file, which left those five symbols undefined too, for the same
   "warning, not a real fix" reason as above. `hrtimer_init`'s changed signature (from
   meta-rz-graphics' own patch) was the one genuinely correct fix carried over unchanged.
+- **88x2bu** — no source patch needed (the `morrownr` fork is actively maintained and already
+  claims kernel 7.1.x support), but its own `Makefile` sets `KSRC`/`KVER` with `:=` (unconditional
+  assignment), so plain exported env vars cannot override them the way `mmngr`'s `KERNELSRC` env
+  vars do — `build_88x2bu.sh` passes `KSRC=$KERNEL_DIR KVER=$(kernel_release)` as `make`
+  command-line variables instead, which always win over a makefile's own `:=`/`?=` assignment
+  regardless of how it was set internally.
+
+## WiFi driver support (Task 08 checklist item)
+
+Task 08's requirement listed two out-of-tree WiFi sources
+(`https://github.com/lwfinger/rtw88.git`, `https://github.com/morrownr/88x2bu-20210702.git`).
+Checked against this kernel's own `renesas_defconfig`/`.config` (`ubuntu/rz-v2h-rdk-rebase-6.18.20`):
+
+- **`lwfinger/rtw88` is redundant** — that driver has been upstream in mainline Linux for years;
+  this kernel already ships it in-tree and enabled as modules: `CONFIG_RTW88_8822BU=m`,
+  `CONFIG_RTW88_8723DU=m`, `CONFIG_RTW88_8821CU=m`, `CONFIG_RTW88_8822CU=m`. No script needed.
+- Also already in-tree and enabled: `CONFIG_MWIFIEX` (onboard SDIO), `CONFIG_BRCMFMAC` (PCIe M.2
+  Key-E, CYW55573, with its own secure-boot TRX firmware patch already merged), `CONFIG_IWLWIFI`
+  (Intel AX210, M.2), `mt76x2` (USB, added by an earlier `renesas_defconfig` commit).
+- **`morrownr/88x2bu` is the one genuine gap**: it covers the RTL8812B chip family, which mainline
+  `rtw88` does **not** support (only 8822B/8723D/8821C). `build_88x2bu.sh` (pinned at
+  `d31ffa827bb95b8a436c2a469b5163b634ac4333`, 2026-09-11) builds clean with no patch required.
+  Whether this is actually needed depends on which WiFi module/dongle is physically populated on a
+  given V2H RDK board — if it's the M.2 Key-E CYW55573, AX210, or an 8822BU-family USB dongle, the
+  in-tree drivers above are already sufficient and this script is not required at all.
