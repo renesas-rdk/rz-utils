@@ -3,6 +3,40 @@
 source ./config.ini
 source ./common.sh
 
+# Overrides common.sh's show_help (the full main_build.sh usage covering every
+# target) with one scoped to this script, since build_kernel.sh is meant to be
+# runnable standalone. Defined after sourcing common.sh so it shadows it.
+show_help() {
+	cat <<USAGE
+Usage: ./build_kernel.sh [sub_command]
+
+Build the Linux kernel (${KERNEL_DIR}). Called directly or via
+'./main_build.sh kernel <sub_command>'.
+
+  <sub_command>:
+    clean             make clean
+    distclean         make distclean
+    defconfig         Write config.ini's DEFCONFIG (kernel_setup + make <defconfig>)
+    menuconfig        defconfig, then make menuconfig
+    image             defconfig, then build Image
+    dtbs              defconfig, then build device trees
+    modules           defconfig + Image + dtbs + build modules
+    modules-install   modules, then install into KERNEL_MODULES_OUTPUT_DIR
+    all               defconfig + Image + dtbs (default if no sub_command given)
+
+Platform override: PLAT=RZV2H-RDK ./build_kernel.sh all
+  (defaults to config.ini's PLATFORM, which selects the DEFCONFIG -- see the
+  KERN_DEFCONFIG map in this script)
+USAGE
+	exit 1
+}
+
+# main_build.sh exports these; default them so this script also works when run
+# directly. Without them the kernel builds with the host gcc instead of the
+# aarch64 cross-compiler.
+export ARCH="${ARCH:-arm64}"
+export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
+
 # if PLATFORM is already exported from main_build.sh, keep it
 if [ -n "${PLATFORM:-}" ] && [ -n "${PLAT:-}" ]; then
 	PLATFORM="$PLAT"

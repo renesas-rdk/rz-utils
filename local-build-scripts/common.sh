@@ -45,11 +45,20 @@ Option:
                 - clean
                 - all
 
-        5. build-all
+        5. kernel-modules
+            Out-of-tree kernel modules (mali_kbase, mmngr, mmngrbuf, vspm, vspm_if -- the
+            extra/ set Renesas ships in the prebuilt kernel .deb, not covered by
+            kernel modules / kernel modules-install). No aggregator here: each module
+            has its own standalone script under kernel-modules/, run directly, e.g.
+                cd kernel-modules && ./build_mmngr.sh all
+            See kernel-modules/README.md for the full list and build order (vspm_if needs
+            vspm built first).
+
+        6. build-all
             Build for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
             <sub_command>: None
 
-        6. clean-all
+        7. clean-all
             Clean for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
             <sub_command>: None
 
