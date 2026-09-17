@@ -1,0 +1,64 @@
+--- a/v2h/drivers/drpai/drpai-core.c	2026-09-17 13:00:22.729405800 +0700
++++ b/v2h/drivers/drpai/drpai-core.c	2026-09-17 13:00:49.726066800 +0700
+@@ -118,44 +118,44 @@
+ static void mdelay(uint32_t msecs);
+ #endif
+ 
+-const static uint32_t stp_errint_status_reg_tbl[STP_ERRINT_STATUS_REG_NUM] =
++static const uint32_t stp_errint_status_reg_tbl[STP_ERRINT_STATUS_REG_NUM] =
+ {
+     DRP_ERRINT_STATUS_ADDR, IDIF_EINT_ADDR, ODIF_EINT_ADDR, IDMAC_INTSE_ADDR, ODMAC_INTSE_ADDR,
+ };
+ 
+-const static char* stp_errint_status_reg_name_tbl[STP_ERRINT_STATUS_REG_NUM] =
++static const char* stp_errint_status_reg_name_tbl[STP_ERRINT_STATUS_REG_NUM] =
+ {
+     "DRP_ERRINT_STATUS","IDIF_EINT", "ODIF_EINT", "IDMAC_INTSE", "ODMAC_INTSE",
+ };
+ 
+-const static uint32_t aimac_errint_status_reg_tbl[AIMAC_ERRINT_STATUS_REG_NUM] =
++static const uint32_t aimac_errint_status_reg_tbl[AIMAC_ERRINT_STATUS_REG_NUM] =
+ {
+     AID0_IDIF_EINT_ADDR, AID0_IDIF2_EINT_DSC_ADDR, AID0_IDMAC_INTSE_ADDR, AID1_IDIF_EINT_ADDR,
+     AID1_IDMAC_INTSE_ADDR, PRAM_INT_ADDR, FMBUF_ERR_STS_ADDR, MACCTL_ERR_STS_ADDR,
+ };
+ 
+-const static char* aimac_errint_status_reg_name_tbl[AIMAC_ERRINT_STATUS_REG_NUM] =
++static const char* aimac_errint_status_reg_name_tbl[AIMAC_ERRINT_STATUS_REG_NUM] =
+ {
+     "AID0_IDIF_EINT", "AID0_IDIF2_EINT_DSC", "AID0_IDMAC_INTSE", "AID1_IDIF_EINT",
+     "AID1_IDMAC_INTSE", "PRAM_INT", "FMBUF_ERR_STS", "MACCTL_ERR_STS",
+ };
+ 
+-const static uint32_t exd0_errint_status_reg_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
++static const uint32_t exd0_errint_status_reg_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
+ {
+     EXD0_IDIF_BADDR + IDIF_EINT_REG, EXD0_ODIF_BADDR + ODIF_EINT_REG, EXD0_IDMAC_INTSE_ADDR, EXD0_ODMAC_INTSE_ADDR,
+ };
+ 
+-const static char* exd0_errint_status_reg_name_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
++static const char* exd0_errint_status_reg_name_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
+ {
+     "EXD0_IDIF_EINT", "EXD0_ODIF_EINT", "EXD0_IDMAC_INTSE", "EXD0_ODMAC_INTSE",
+ };
+ 
+-const static uint32_t exd1_errint_status_reg_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
++static const uint32_t exd1_errint_status_reg_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
+ {
+     EXD1_IDIF_BADDR + IDIF_EINT_REG, EXD1_ODIF_BADDR + ODIF_EINT_REG, EXD1_IDMAC_INTSE_ADDR, EXD1_ODMAC_INTSE_ADDR,
+ };
+ 
+-const static char* exd1_errint_status_reg_name_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
++static const char* exd1_errint_status_reg_name_tbl[EXDx_ERRINT_STATUS_REG_NUM] =
+ {
+     "EXD1_IDIF_EINT", "EXD1_ODIF_EINT", "EXD1_IDMAC_INTSE", "EXD1_ODMAC_INTSE",
+ };
+@@ -1380,7 +1380,7 @@
+     return ret;
+ }
+ 
+-int32_t reset_cpg(addr_t cpg_base_addr, int32_t ch)
++static int32_t __maybe_unused reset_cpg(addr_t cpg_base_addr, int32_t ch)
+ {
+     int32_t ret = R_DRPAI_SUCCESS;
+     int32_t BIT_NUM_RST    = (0 == ch) ? 13 : 12;
