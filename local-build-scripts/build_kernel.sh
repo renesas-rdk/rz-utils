@@ -75,37 +75,17 @@ echo "Using DEFCONFIG=${DEFCONFIG}"
 
 # Setup the build
 kernel_setup() {
-	CONFIG_LOCALVERSION='CONFIG_LOCALVERSION="-arm64-renesas"'
-	CONFIG_LOCALVERSION_AUTO='CONFIG_LOCALVERSION_AUTO=n'
-	FILE="arch/arm64/configs/${DEFCONFIG}"
+	# Every platform defconfig in this tree already bakes in its own
+	# CONFIG_LOCALVERSION and CONFIG_LOCALVERSION_AUTO=n (see
+	# renesas_defconfig, rzg2l-sbc_defconfig, rzv2h_defconfig) -- this
+	# used to also force CONFIG_LOCALVERSION="-arm64-renesas" here to
+	# paper over rzv2h_defconfig shipping a mismatched
+	# "-yocto-standard" value, but that defconfig has since been fixed
+	# to match the others directly, so the override is redundant now.
 
 	# Remove '+' at the end of kernel version
 	#touch .scmversion
 	export LOCALVERSION=""
-
-	# Set CONFIG_LOCALVERSION unconditionally: remove any existing
-	# CONFIG_LOCALVERSION=... line(s) first (the defconfig's own, or a
-	# stale one appended by an earlier run of this script) and append
-	# exactly one fresh line, so the value is idempotent and always wins
-	# as the last (and only) Kconfig assignment -- a plain "does this
-	# exact string already appear" grep is not enough since a defconfig
-	# can already set a *different* CONFIG_LOCALVERSION value (e.g.
-	# rzv2h_defconfig ships "-yocto-standard"), which used to make this
-	# check pass while a second, different-valued line still got
-	# appended below it, so re-running the script kept growing the file
-	# with conflicting lines instead of converging on one value.
-	sed -i '/^CONFIG_LOCALVERSION=/d' "$FILE"
-	echo "" >> "$FILE"
-	echo "$CONFIG_LOCALVERSION" >> "$FILE"
-	echo "Set $CONFIG_LOCALVERSION in $FILE"
-
-	if grep -q "$CONFIG_LOCALVERSION_AUTO" "$FILE"; then
-		echo "Already set $CONFIG_LOCALVERSION_AUTO"
-	else
-		echo "" >> "$FILE"
-		echo "$CONFIG_LOCALVERSION_AUTO" >> "$FILE"
-		echo "Appended $CONFIG_LOCALVERSION_AUTO to $FILE"
-	fi
 }
 
 mk_image() {
