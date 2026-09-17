@@ -84,6 +84,25 @@ hardware** — the board was unreachable this session — and it is not yet conf
 actually carries an RTL8812BU dongle (the only chip mainline `rtw88` does not already cover; see
 below).
 
+`mali_kbase`'s runtime PM had a real, reproducible bug found on real hardware only once weston
+(not a one-shot manual test) exercised the GPU's idle/resume cycle: `pm_callback_power_on`
+delegates to `pm_runtime_get_sync()`, which (since the GPU node has `power-domains = <&cpg>` in
+the devicetree — the CPG is both clock *and* genpd provider on this SoC) goes through
+`genpd_runtime_resume() -> pm_clk_resume()`, a **second, independent** clock-management path on
+top of `mali_kbase`'s own `kbdev->clocks[]` handling. `disable_gpu_power_control()` used to call
+`clk_disable_unprepare()`, fully unpreparing a clock genpd's own pm_clk list still expected to stay
+prepared — the next `pm_clk_resume()` then hit `WARN_ON(prepare_count == 0)` in `clk_core_enable()`
+(`drivers/clk/clk.c`) and returned `-ESHUTDOWN` (-108), breaking real GPU job submission after the
+first idle timeout (`mali 14850000.gpu: __pm_clk_enable: failed to enable clk ..., error -108`).
+Fixed (`patches/mali_kbase/0005-...patch`) by only ever calling `clk_enable()`/`clk_disable()` in
+`enable_gpu_power_control()`/`disable_gpu_power_control()` — never prepare/unprepare again after
+the one-time `clk_prepare_enable()` already done at probe (`mali_kbase_core_linux.c`) — verified on
+real hardware: the -108 error is gone across repeated idle/resume cycles. A residual, purely
+cosmetic `WARN_ON(enable_count == 0)` in `clk_core_disable()` remains (genpd and mali_kbase each
+still independently call `clk_disable()` once per suspend) — left alone on purpose, since actually
+eliminating it means skipping mali_kbase's own clock calls whenever `power-domains` is set, which
+trades the warning for the GPU clock never being power-gated at idle.
+
 ## Kernel-6.18 API breaks found so far
 
 Patches carried from the kernel-6.10-era `rz-utils-ext-modules` prototype (see
