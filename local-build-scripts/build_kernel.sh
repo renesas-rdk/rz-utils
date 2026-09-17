@@ -83,14 +83,21 @@ kernel_setup() {
 	#touch .scmversion
 	export LOCALVERSION=""
 
-	# Update defconfig to compatible with rootfs
-	if grep -q "$CONFIG_LOCALVERSION" "$FILE"; then
-		echo "Already set $CONFIG_LOCALVERSION"
-	else
-		echo "" >> "$FILE"
-		echo "$CONFIG_LOCALVERSION" >> "$FILE"
-		echo "Appended $CONFIG_LOCALVERSION to $FILE"
-	fi
+	# Set CONFIG_LOCALVERSION unconditionally: remove any existing
+	# CONFIG_LOCALVERSION=... line(s) first (the defconfig's own, or a
+	# stale one appended by an earlier run of this script) and append
+	# exactly one fresh line, so the value is idempotent and always wins
+	# as the last (and only) Kconfig assignment -- a plain "does this
+	# exact string already appear" grep is not enough since a defconfig
+	# can already set a *different* CONFIG_LOCALVERSION value (e.g.
+	# rzv2h_defconfig ships "-yocto-standard"), which used to make this
+	# check pass while a second, different-valued line still got
+	# appended below it, so re-running the script kept growing the file
+	# with conflicting lines instead of converging on one value.
+	sed -i '/^CONFIG_LOCALVERSION=/d' "$FILE"
+	echo "" >> "$FILE"
+	echo "$CONFIG_LOCALVERSION" >> "$FILE"
+	echo "Set $CONFIG_LOCALVERSION in $FILE"
 
 	if grep -q "$CONFIG_LOCALVERSION_AUTO" "$FILE"; then
 		echo "Already set $CONFIG_LOCALVERSION_AUTO"
