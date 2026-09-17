@@ -86,42 +86,31 @@ below).
 
 `mali_kbase`'s runtime PM had a real, reproducible bug found on real hardware only once weston
 (not a one-shot manual test) exercised the GPU's idle/resume cycle: `pm_callback_power_on`
-delegates to `pm_runtime_get_sync()`, which (since the GPU node has `power-domains = <&cpg>` in
-the devicetree — the CPG is both clock *and* genpd provider on this SoC) goes through
+delegates to `pm_runtime_get_sync()`, which (since the GPU node had `power-domains = <&cpg>` in
+the devicetree — the CPG is both clock *and* genpd provider on this SoC) went through
 `genpd_runtime_resume() -> pm_clk_resume()`, a **second, independent** clock-management path on
-top of `mali_kbase`'s own `kbdev->clocks[]` handling. `disable_gpu_power_control()` used to call
-`clk_disable_unprepare()`, fully unpreparing a clock genpd's own pm_clk list still expected to stay
-prepared — the next `pm_clk_resume()` then hit `WARN_ON(prepare_count == 0)` in `clk_core_enable()`
-(`drivers/clk/clk.c`) and returned `-ESHUTDOWN` (-108), breaking real GPU job submission after the
-first idle timeout (`mali 14850000.gpu: __pm_clk_enable: failed to enable clk ..., error -108`).
-Fixed (`patches/mali_kbase/0005-...patch`) by only ever calling `clk_enable()`/`clk_disable()` in
-`enable_gpu_power_control()`/`disable_gpu_power_control()` — never prepare/unprepare again after
-the one-time `clk_prepare_enable()` already done at probe (`mali_kbase_core_linux.c`) — verified on
-real hardware: the -108 error is gone across repeated idle/resume cycles.
+top of `mali_kbase`'s own `kbdev->clocks[]` handling. This first surfaced as a real `-ESHUTDOWN`
+(-108) breaking GPU job submission after the first idle timeout
+(`mali 14850000.gpu: __pm_clk_enable: failed to enable clk ..., error -108`), and after an initial
+fix for that, as a second, purely cosmetic `WARN_ON(enable_count == 0)` in `clk_core_disable()`
+(dmesg: e.g. `gpu_0_axi_clk already disabled`) recurring every autosuspend cycle — genpd and
+`mali_kbase` each independently toggling `clk_enable()`/`clk_disable()` on the same underlying
+clocks, racing each other's expectations of the shared `enable_count`/`prepare_count`.
 
-A second, purely cosmetic `WARN_ON(enable_count == 0)` in `clk_core_disable()` (dmesg: e.g.
-`gpu_0_axi_clk already disabled`) still recurred every autosuspend cycle after 0005. Root cause:
-when the GPU is genpd-managed, `genpd_runtime_resume()`/`_suspend()` call their own
-`genpd_start_dev()`/`genpd_stop_dev()` (genpd's own `pm_clk`-based enable/disable, using genpd's own
-clk references) *before*/*after* calling this driver's own runtime callback via
-`pm_generic_runtime_resume()`/`_suspend()`. So `enable_gpu_power_control()` always finds the clock
-already enabled by genpd (its own call is a no-op), but `disable_gpu_power_control()` is not always
-a no-op — depending on how many resumes already happened, it can decrement `enable_count` to 0
-itself, and genpd's own disable right after then finds it already at 0. Fixed
-(`patches/mali_kbase/0006-...patch`) by skipping `enable_gpu_power_control()`/
-`disable_gpu_power_control()`'s clock loop entirely whenever `kbdev->dev->pm_domain` is set,
-leaving genpd as the sole caller of `clk_enable()`/`clk_disable()` on these clocks for the rest of
-the device's life. This does **not** reintroduce a power-gating regression: the one-time
-`clk_prepare_enable()` at probe only sets `prepare_count`/`enable_count` to 1 once, and genpd's own
-first suspend correctly brings `enable_count` back to 0 (real gating), since mali_kbase's own calls
-no longer touch it at all. An earlier attempt at this fix also tried to rebalance the probe-time
-`clk_prepare_enable()` itself (disabling it again immediately if genpd-managed) — that crashed the
-board on `insmod` with a synchronous external abort in `kbase_reg_get_gpu_id()`, since
-`kbase_device_init()` still does direct GPU register access for a while *after* that clock loop
-returns, well before genpd's own first resume would re-enable it. That approach was reverted;
-probe-time clock handling is untouched by 0006. Verified on real hardware: `mali_kbase` loads
-cleanly, GPU probes correctly, and dmesg stayed completely clean (zero new lines) across 120+
-seconds with weston actively running, covering multiple autosuspend idle/resume cycles.
+Two out-of-tree patches (`0005-fix-runtime-pm-clock-double-management-with-genpd.patch`,
+`0006-fix-genpd-clock-cleanup-leaks-and-double-toggling.patch`) were written and verified working
+to fix this from the `mali_kbase` side, before it was discovered that Renesas already has an
+upstream-pending fix for exactly this class of bug at the *devicetree* level: `meta-rz-graphics`
+commits `a2d925dccd6d`/`c029a869978a`/`5508ac518174` simply remove `power-domains = <&cpg>;` from
+the GPU node (RZ/V2H, RZ/G2L, RZ/V2L) so genpd never attaches to the device at all and `mali_kbase`
+is the sole clock owner again — no double management, no patch to a third-party driver needed. That
+DT fix is now applied on `linux-rz` (`ubuntu/rz-v2h-rdk-rebase-6.18.20`, see its own commit "arm64:
+dts: renesas: remove power-domains from GPU node..."), so **patches 0005 and 0006 have been removed
+from this repo** — they are no longer needed and would be dead code (`kbdev->dev->pm_domain` is now
+always `NULL` on this board). Verified on real hardware after switching to the DT fix: `mali_kbase`
+(vanilla clock handling, only patches 0001-0004 applied) loads cleanly, GPU probes correctly, and a
+full `glmark2-es2-wayland` run plus extended idle/resume monitoring under weston show no `-108` and
+no `clk_core_disable` warnings.
 
 ## Kernel-6.18 API breaks found so far
 

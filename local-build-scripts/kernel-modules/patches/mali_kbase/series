@@ -4,5 +4,3 @@
 0003-fix-kernel-warning-when-try-to-enable-disable-regula.patch
 0004-Fix-kernel-warning-of-irq-names.patch
 0001-fix-hrtimer_init-api-change.patch
-0005-fix-runtime-pm-clock-double-management-with-genpd.patch
-0006-fix-genpd-clock-cleanup-leaks-and-double-toggling.patch
