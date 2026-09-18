@@ -44,6 +44,47 @@ ensure_src_dir() {
 	git clone --branch "${branch}" "${repo}" "${dir}"
 }
 
+# Like ensure_src_dir(), but pins to a fixed commit instead of a branch tip --
+# for tools whose source is only ever meant to be built at one exact
+# upstream revision (e.g. bptool, from a different repo than ATF_REPO).
+# Unlike ensure_src_dir(), this DOES re-sync an existing checkout when it is
+# sitting on the wrong commit -- there is no "local dev work" to preserve for
+# a pinned build tool.
+#
+#   ensure_src_dir_at_rev <dir> <repo> <rev> <label>
+ensure_src_dir_at_rev() {
+	local dir="$1" repo="$2" rev="$3" label="$4"
+	local have
+
+	if [ -z "${repo}" ] || [ -z "${rev}" ]; then
+		echo "There is no ${label} source at ${dir}, and no repo/rev configured in config.ini to clone it automatically." >&2
+		echo "Please clone it manually, or set the matching *_REPO/*_SRCREV variables in config.ini." >&2
+		exit 1
+	fi
+
+	if [ ! -d "${dir}/.git" ]; then
+		if [ -e "${dir}" ]; then
+			echo "Error: ${dir} exists but is not a git repository (no .git found)." >&2
+			echo "Refusing to auto-clone ${label} into it -- please check/remove this directory manually." >&2
+			exit 1
+		fi
+		echo "${label} source not found at ${dir}, cloning ${repo}..."
+		git clone -q "${repo}" "${dir}"
+	fi
+
+	have="$(git -C "${dir}" rev-parse HEAD 2>/dev/null)"
+	if [ "${have}" = "${rev}" ]; then
+		echo "${label}: already at ${rev}"
+		return 0
+	fi
+
+	if ! git -C "${dir}" cat-file -e "${rev}^{commit}" 2>/dev/null; then
+		git -C "${dir}" fetch -q --all --tags
+	fi
+	echo "${label}: checking out ${rev}"
+	git -C "${dir}" checkout -q -f "${rev}"
+}
+
 _usage="
 Usage: 
 
