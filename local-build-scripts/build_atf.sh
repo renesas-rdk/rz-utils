@@ -46,17 +46,19 @@ mk_image_one() {
 	local images=("$@")
 	resolve_board "${platform}"
 
-	# TF-A's own toolchain.mk undefines LD if left at Make's builtin "default"
-	# origin, then re-detects it as CROSS_COMPILE+gcc (ld-id=gnu-gcc), which
-	# should get raw linker flags wrapped in -Wl, via its ld_prefix macro. In
-	# practice that auto-detection has been unreliable here (BL2 links with
-	# --no-dynamic-linker/--emit-relocs unwrapped, hitting "unrecognized
-	# command-line option" from gcc) -- pin LD explicitly to force TF-A down
-	# the gnu-gcc-linker path it already expects by default.
+	# plat/renesas/rz/common/rz_common.mk appends raw "-pie --no-dynamic-linker
+	# --emit-relocs" to BL2_LDFLAGS without wrapping them via the ld_prefix
+	# macro (unlike make_helpers/cflags.mk's own PIE_LDFLAGS, which does).
+	# Those flags are only valid for a real linker, not gcc-as-linker-driver --
+	# with LD=CROSS_COMPILE+gcc this always fails with "unrecognized
+	# command-line option '--no-dynamic-linker'" at the BL2 link step. Point
+	# LD straight at the linker instead so it receives them unwrapped, as
+	# rz_common.mk assumes.
+	LD="${CROSS_COMPILE}ld"
 	if [ "${ATF_MODE:-RELEASE}" = "DEBUG" ]; then
-		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${CROSS_COMPILE}gcc" DEBUG=1 "${images[@]}"
+		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${LD}" DEBUG=1 "${images[@]}"
 	else
-		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${CROSS_COMPILE}gcc" "${images[@]}"
+		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${LD}" "${images[@]}"
 	fi
 }
 

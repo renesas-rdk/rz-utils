@@ -79,8 +79,10 @@ build_atf_fip() {
 	fi
 
 	sanitize_env
+	# See build_atf.sh's mk_image_one() for why LD points at the raw linker
+	# instead of CROSS_COMPILE+gcc (rz_common.mk's unwrapped BL2_LDFLAGS).
 	make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" \
-		LD="${CROSS_COMPILE}gcc" BL33="${UBOOT_BIN}" bl2 fip
+		LD="${CROSS_COMPILE}ld" BL33="${UBOOT_BIN}" bl2 fip
 }
 
 # ATF's own BUILD_PLAT layout under PLAT=cmn/BOARD=rz_cmn hasn't been
