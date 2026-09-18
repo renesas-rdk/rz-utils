@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# main_build.sh sets these too (with extra hardening CFLAGS on top), but each
+# build_<target>.sh is also meant to be runnable standalone -- default them
+# here so a direct invocation still cross-compiles instead of silently
+# falling back to the host gcc/as/ld and failing on target-specific flags
+# (e.g. -march=armv8-a+crc, -mstrict-align).
+export ARCH="${ARCH:-arm64}"
+export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
+
 _usage="
 Usage: 
 

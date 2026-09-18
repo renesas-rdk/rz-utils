@@ -3,6 +3,30 @@
 source ./config.ini
 source ./common.sh
 
+# Overrides common.sh's show_help (the full main_build.sh usage covering every
+# target) with one scoped to this script, since build_uboot.sh is meant to be
+# runnable standalone. Defined after sourcing common.sh so it shadows it.
+show_help() {
+	cat <<USAGE
+Usage: ./build_uboot.sh [sub_command]
+
+Build U-Boot (${UBOOT_DIR}). Called directly or via
+'./main_build.sh uboot <sub_command>'.
+
+  <sub_command>:
+    clean       make clean
+    distclean   make distclean
+    defconfig   Write config.ini's DEFCONFIG (make <defconfig>)
+    image       make (build using the existing .config, no defconfig step)
+    all         defconfig, then make (default if no sub_command given)
+
+Platform override: PLAT=RZV2H-RDK ./build_uboot.sh all
+  (defaults to config.ini's PLATFORM, which selects the DEFCONFIG -- see the
+  UBOOT_DEFCONFIG case in this script)
+USAGE
+	exit 1
+}
+
 # if PLATFORM is already exported from main_build.sh, keep it
 if [ -n "${PLATFORM:-}" ] && [ -n "${PLAT:-}" ]; then
 	PLATFORM="$PLAT"
