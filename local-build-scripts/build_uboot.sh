@@ -34,10 +34,11 @@ fi
 
 # Check U-Boot location
 if [ -z "${UBOOT_DIR}" ]; then
-	echo "There is no U-Boot source at ${UBOOT_DIR} or it does not set properly at config.ini file."
+	echo "UBOOT_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_BRANCH:-}" "U-Boot"
 
 # Setup the build
 uboot_setup() {

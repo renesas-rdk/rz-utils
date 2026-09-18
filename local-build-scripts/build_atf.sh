@@ -11,10 +11,11 @@ fi
 
 # Check ATF location
 if [ -z "${ATF_DIR}" ]; then
-	echo "There is no TF-A source at ${ATF_DIR} or it does not set properly at config.ini file."
+	echo "ATF_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${ATF_DIR}" "${ATF_REPO:-}" "${ATF_BRANCH:-}" "TF-A"
 
 # ---- Config ----
 JOBS="${JOBS:-$(nproc)}"

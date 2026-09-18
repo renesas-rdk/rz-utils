@@ -38,10 +38,11 @@ fi
 
 # Check Linux Kernel location
 if [ -z "${KERNEL_DIR}" ]; then
-	echo "There is no Linux Kernel source at ${KERNEL_DIR} or it does not set properly at config.ini file."
+	echo "KERNEL_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${KERNEL_DIR}" "${KERNEL_REPO:-}" "${KERNEL_BRANCH:-}" "Linux Kernel"
 
 # Default fallback
 DEFCONFIG="renesas_defconfig"
