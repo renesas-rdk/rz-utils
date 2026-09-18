@@ -7,6 +7,7 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 ```
 .
 ├── build_atf.sh
+├── build_firmware_pack.sh
 ├── build_flash_writer.sh
 ├── build_kernel.sh
 ├── build_uboot.sh
@@ -15,7 +16,7 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 ├── main_build.sh
 └── README.md
 
-1 directory, 8 files
+1 directory, 9 files
 ```
 
 ## Prerequisites
@@ -147,3 +148,40 @@ This configuration file contains the configurations for the build. Please make s
   Cloning is done with the invoking user's own git/SSH credentials, so it
   only works where those already have access to the repos (see the Docker
   note below for the `son_ubuntu_24`-style container setup).
+- **BPTOOL_DIR/BPTOOL_REPO/BPTOOL_SRCREV**: source location for `bptool`, a native
+  host tool used only by `build_firmware_pack.sh` (see below). Pinned to a fixed
+  commit (`ensure_src_dir_at_rev()` in `common.sh`, re-syncs an existing checkout
+  that is on the wrong commit) in a repo separate from `ATF_DIR`/`ATF_REPO` --
+  `bptool`'s own Makefile still `include`s `make_helpers/build_env.mk`, a file
+  upstream TF-A removed from `ATF_DIR`'s branch when it dropped Windows-native
+  build support (only Renesas's own `tools/renesas/*` Makefiles were never
+  updated to match), so it cannot be built out of `ATF_DIR` itself.
+- **BL2_BASE_ADDR/BL2_ADJUST_VMA/FIP_ADJUST_VMA, BL2_BOOT_TARGET,
+  FIRMWARE_PACK_OUTPUT_DIR**: used only by `build_firmware_pack.sh` (see below).
+
+### build_firmware_pack.sh
+
+Standalone script (not wired into `main_build.sh`, same as `kernel-modules/build_*.sh`)
+that packages ATF's BL2/FIP into the form the board's SCIF/Flash-Writer boot flow
+expects, ported from meta-renesas's `bptool-native.bb` + `firmware-pack.bb` Yocto
+recipes:
+
+1. Builds `bptool`, a native host tool, from `BPTOOL_DIR` (auto-cloned/pinned per
+   `config.ini`, see above).
+2. Builds ATF's `bl2`+`fip` targets against `ATF_DIR`, with `BL33` pointing at
+   `${UBOOT_DIR}/u-boot.bin` (required for the `fip` target) -- run
+   `./build_uboot.sh all` first if that does not exist yet.
+3. For each entry in `BL2_BOOT_TARGET` (`spi`, `mmc`, `esd`), runs `bptool` to
+   prepend a boot-parameter header to `bl2.bin`, then converts the result and
+   `fip.bin` to Motorola S-record (`.srec`) via `objcopy`.
+
+Output goes to `FIRMWARE_PACK_OUTPUT_DIR`. The resulting `bl2_bp_<target>.srec` and
+`fip-rzv2h-rdk.srec` are what `universal-scripts/host/tools/bootloader_flasher/
+bootloader_flash.py` expects for `--image_bl2`/`--image_fip`.
+
+```bash
+cd local-build-scripts
+./build_firmware_pack.sh all
+```
+
+Usage: `./build_firmware_pack.sh [bptool|all]` (default `all`).
