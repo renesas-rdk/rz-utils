@@ -8,6 +8,42 @@
 export ARCH="${ARCH:-arm64}"
 export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 
+# Each build_<target>.sh calls this before building, so a missing source
+# checkout fails fast with a clear message instead of deep inside `make`.
+#
+#   ensure_src_dir <dir> <repo> <branch> <label>
+#
+# - <dir> already exists and is a git repo (has .git)   -> left alone, no-op.
+#   This never pulls/resets an existing checkout -- it may hold local
+#   patches or be intentionally on a different branch than <branch>.
+# - <dir> does not exist                                -> git clone -b
+#   <branch> <repo> <dir>, using <repo>/<branch> from config.ini.
+# - <dir> exists but is NOT a git repo (e.g. empty)      -> error, stop.
+#   Refuses to clone into or delete a directory that might hold data we
+#   don't understand.
+ensure_src_dir() {
+	local dir="$1" repo="$2" branch="$3" label="$4"
+
+	if [ -d "${dir}/.git" ]; then
+		return 0
+	fi
+
+	if [ -e "${dir}" ]; then
+		echo "Error: ${dir} exists but is not a git repository (no .git found)." >&2
+		echo "Refusing to auto-clone ${label} into it -- please check/remove this directory manually." >&2
+		exit 1
+	fi
+
+	if [ -z "${repo}" ] || [ -z "${branch}" ]; then
+		echo "There is no ${label} source at ${dir}, and no repo/branch configured in config.ini to clone it automatically." >&2
+		echo "Please clone it manually, or set the matching *_REPO/*_BRANCH variables in config.ini." >&2
+		exit 1
+	fi
+
+	echo "${label} source not found at ${dir}, cloning ${repo} (branch ${branch})..."
+	git clone --branch "${branch}" "${repo}" "${dir}"
+}
+
 _usage="
 Usage: 
 

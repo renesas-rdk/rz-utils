@@ -49,6 +49,16 @@ sudo apt install \
   completes and `u-boot.bin`/`u-boot.elf` are unaffected -- but installing this
   package silences it.
 
+If a source directory (`KERNEL_DIR`, `UBOOT_DIR`, `ATF_DIR`, `FLASH_WRITER_DIR`)
+does not exist yet, the matching `build_<target>.sh` clones it automatically
+over SSH using the `*_REPO`/`*_BRANCH` values in `config.ini` (see below) --
+this needs a GitHub-authorized SSH key available to whichever user runs the
+script. In a Docker container this key is *not* inherited from the host
+automatically; either bind-mount the host's `~/.ssh` into the container, or
+copy `id_rsa`/`id_rsa.pub` in manually, matching the user the build actually
+runs as inside the container (e.g. `root` for a plain `docker exec <container>
+...` with no `-u`).
+
 ## Usage
 
 ```
@@ -125,3 +135,15 @@ This configuration file contains the configurations for the build. Please make s
 - **ATF_DIR**: Address the ATF source code location.
 - **FLASH_WRITER_DIR**: Address the Flash-Writer source code location.
 - **ATF_MODE**: Select the mode for ATF images.
+- **KERNEL_REPO/KERNEL_BRANCH, UBOOT_REPO/UBOOT_BRANCH, ATF_REPO/ATF_BRANCH,
+  FLASH_WRITER_REPO/FLASH_WRITER_BRANCH**: used only to auto-clone the matching
+  `*_DIR` above if it does not already exist -- each `build_<target>.sh` checks
+  this at startup (`ensure_src_dir()` in `common.sh`) before building. An
+  existing checkout at `*_DIR` is always left alone, whatever branch it is on;
+  a directory that exists but is not a git repo (e.g. empty) is treated as an
+  error rather than auto-cloned into. `KERNEL_BRANCH` in particular is often
+  overridden per task (e.g. switching between the std and RT porting
+  branches) -- update it to match whichever branch you actually want cloned.
+  Cloning is done with the invoking user's own git/SSH credentials, so it
+  only works where those already have access to the repos (see the Docker
+  note below for the `son_ubuntu_24`-style container setup).

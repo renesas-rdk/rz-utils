@@ -10,10 +10,11 @@ fi
 
 # Check Flash-Writer location
 if [ -z "${FLASH_WRITER_DIR}" ]; then
-	echo "There is no Flash-writer source at ${FLASH_WRITER_DIR} or it does not set properly at config.ini file."
+	echo "FLASH_WRITER_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${FLASH_WRITER_DIR}" "${FLASH_WRITER_REPO:-}" "${FLASH_WRITER_BRANCH:-}" "Flash-Writer"
 
 # Map PLATFORM -> "PLAT BOARD"
 declare -A FW_P2B=(
