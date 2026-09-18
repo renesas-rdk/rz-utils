@@ -128,9 +128,6 @@ mk_pack() {
 	echo "Firmware pack finished. Output in ${FIRMWARE_PACK_OUTPUT_DIR}:"
 	ls -l "${FIRMWARE_PACK_OUTPUT_DIR}"
 	echo "======================================"
-	echo "Flash via universal-scripts/host/tools/bootloader_flasher/bootloader_flash.py, e.g.:"
-	echo "  --image_bl2 ${FIRMWARE_PACK_OUTPUT_DIR}/bl2_bp_mmc.srec \\"
-	echo "  --image_fip ${FIRMWARE_PACK_OUTPUT_DIR}/fip-rzv2h-rdk.srec"
 }
 
 # ---- Main ----
