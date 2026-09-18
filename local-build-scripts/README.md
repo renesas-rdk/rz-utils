@@ -30,8 +30,24 @@ sudo apt install \
     bc \
     bison \
     flex \
-    libssl-dev
+    libssl-dev \
+    device-tree-compiler \
+    libgnutls28-dev \
+    srecord
 ```
+
+- `device-tree-compiler` (`dtc`): needed by both U-Boot and ATF (`build_uboot.sh`,
+  `build_atf.sh`) to compile the `.dts` sources into `.dtb` files. The kernel build
+  does not need this package -- it vendors and builds its own `scripts/dtc/dtc`.
+- `libgnutls28-dev`: needed by U-Boot's host-side `tools/mkeficapsule` (EFI capsule
+  update image generator), built as part of `make tools` even though this board's
+  boot flow does not use EFI capsule updates.
+- `srecord` (provides `srec_cat`): without it, U-Boot's build prints
+  `srec_cat: not found` and `expr: syntax error: unexpected argument '1.60'` partway
+  through (a version-check `$(shell ...)` call in the Makefile gets an empty result
+  and confuses the following `expr`). Cosmetic, not fatal -- the build still
+  completes and `u-boot.bin`/`u-boot.elf` are unaffected -- but installing this
+  package silences it.
 
 ## Usage
 

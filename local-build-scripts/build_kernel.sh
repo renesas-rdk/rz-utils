@@ -31,12 +31,6 @@ USAGE
 	exit 1
 }
 
-# main_build.sh exports these; default them so this script also works when run
-# directly. Without them the kernel builds with the host gcc instead of the
-# aarch64 cross-compiler.
-export ARCH="${ARCH:-arm64}"
-export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
-
 # if PLATFORM is already exported from main_build.sh, keep it
 if [ -n "${PLATFORM:-}" ] && [ -n "${PLAT:-}" ]; then
 	PLATFORM="$PLAT"

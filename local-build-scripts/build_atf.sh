@@ -45,10 +45,17 @@ mk_image_one() {
 	local images=("$@")
 	resolve_board "${platform}"
 
+	# TF-A's own toolchain.mk undefines LD if left at Make's builtin "default"
+	# origin, then re-detects it as CROSS_COMPILE+gcc (ld-id=gnu-gcc), which
+	# should get raw linker flags wrapped in -Wl, via its ld_prefix macro. In
+	# practice that auto-detection has been unreliable here (BL2 links with
+	# --no-dynamic-linker/--emit-relocs unwrapped, hitting "unrecognized
+	# command-line option" from gcc) -- pin LD explicitly to force TF-A down
+	# the gnu-gcc-linker path it already expects by default.
 	if [ "${ATF_MODE:-RELEASE}" = "DEBUG" ]; then
-		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" DEBUG=1 "${images[@]}"
+		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${CROSS_COMPILE}gcc" DEBUG=1 "${images[@]}"
 	else
-		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" "${images[@]}"
+		make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" LD="${CROSS_COMPILE}gcc" "${images[@]}"
 	fi
 }
 
