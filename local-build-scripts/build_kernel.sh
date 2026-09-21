@@ -22,7 +22,8 @@ Build the Linux kernel (${KERNEL_DIR}). Called directly or via
     dtbs              defconfig, then build device trees
     modules           defconfig + Image + dtbs + build modules
     modules-install   modules, then install into KERNEL_MODULES_OUTPUT_DIR
-    all               defconfig + Image + dtbs (default if no sub_command given)
+    all               defconfig + Image + dtbs + modules + modules-install
+                      (i.e. everything -- same as modules-install)
 
 Platform override: PLAT=RZV2H-RDK ./build_kernel.sh all
   (defaults to config.ini's PLATFORM, which selects the DEFCONFIG -- see the
@@ -182,7 +183,7 @@ case ${1} in
 		mk_dtbs
 		;;
 	'all')
-		mk_full_image
+		mk_modules_install
 		;;
 	'modules')
 		mk_modules
