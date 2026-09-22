@@ -9,7 +9,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_ROOT="${SCRIPT_DIR}/patches"
-EXT_MODULES_SRC_DIR="${EXT_MODULES_SRC_DIR:-${SCRIPT_DIR}/../../../workspace/ext-modules}"
+
+# Default now lives in config.ini (keyed off WORKDIR, like every other *_DIR
+# there) -- already sourced by the caller before this file. Kept here too,
+# defensively, in case this is ever sourced without config.ini.
+EXT_MODULES_SRC_DIR="${EXT_MODULES_SRC_DIR:-$WORKDIR/ext-modules}"
 
 # main_build.sh exports these; default them so a build_<name>.sh also works when
 # run directly. Without them the modules build with the host gcc and the kernel
