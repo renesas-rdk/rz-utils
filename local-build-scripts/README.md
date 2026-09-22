@@ -107,7 +107,7 @@ Option:
                 - clean
                 - all
 
-        5. build-all
+        5. all
             Build for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
             <sub_command>: None
 

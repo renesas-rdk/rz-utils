@@ -27,9 +27,9 @@ if [ -z "${1}" ] ; then
 	show_help
 else
 	if [ -z "${2-}" ]; then
-		if [ "${1}" = "build-all" ] || [ "${1}" = "clean-all" ]; then
+		if [ "${1}" = "all" ] || [ "${1}" = "clean-all" ]; then
 			case ${1} in
-				"build-all")
+				"all")
 					./build_kernel.sh "all"
 					./build_uboot.sh "all"
 					./build_atf.sh "all"

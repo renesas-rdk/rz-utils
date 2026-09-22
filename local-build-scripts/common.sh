@@ -147,7 +147,7 @@ Option:
                 - bptool (build the bptool host tool only)
                 - all
 
-        7. build-all
+        7. all
             Build for all software stacks (Linux Kernel, U-Boot, ATF, Firmware-Pack,
             Flash-Writer)
             <sub_command>: None
