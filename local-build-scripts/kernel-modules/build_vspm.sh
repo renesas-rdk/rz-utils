@@ -13,7 +13,7 @@ cd "${SCRIPT_DIR}/.."
 source ./config.ini
 source ./common.sh
 cd "${SCRIPT_DIR}"
-source ./_lib.sh
+source ./common.sh
 
 if [ -z "${KERNEL_DIR:-}" ]; then
 	echo "There is no Linux Kernel source at ${KERNEL_DIR:-} or it does not set properly at config.ini file."
