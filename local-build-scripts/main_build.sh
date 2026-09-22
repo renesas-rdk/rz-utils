@@ -33,12 +33,17 @@ else
 					./build_kernel.sh "all"
 					./build_uboot.sh "all"
 					./build_atf.sh "all"
+					./build_firmware_pack.sh "all"
 					./build_flash_writer.sh "all"
 					;;
 				"clean-all")
 					./build_kernel.sh "distclean"
 					./build_uboot.sh "distclean"
 					./build_atf.sh "distclean"
+					# build_firmware_pack.sh has no clean sub_command of its own
+					# (its output is just copied/objcopy'd binaries, no build state
+					# to distclean) -- remove its output dir directly instead.
+					rm -rf "${FIRMWARE_PACK_OUTPUT_DIR}"
 					./build_flash_writer.sh "clean"
 					;;
 				*)
@@ -49,7 +54,7 @@ else
 			show_help
 		fi
 	else
-		if [ "${1}" = "kernel" ] || [ "${1}" = "uboot" ] || [ "${1}" = "atf" ] || [ "${1}" = "flash-writer" ]; then
+		if [ "${1}" = "kernel" ] || [ "${1}" = "uboot" ] || [ "${1}" = "atf" ] || [ "${1}" = "firmware-pack" ] || [ "${1}" = "flash-writer" ]; then
 			case ${1} in
 				"kernel")
 					./build_kernel.sh "${2}"
@@ -59,6 +64,9 @@ else
 					;;
 				"atf")
 					./build_atf.sh "${2}"
+					;;
+				"firmware-pack")
+					./build_firmware_pack.sh "${2}"
 					;;
 				"flash-writer")
 					./build_flash_writer.sh "${2}"

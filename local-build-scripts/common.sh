@@ -139,12 +139,22 @@ Option:
             See kernel-modules/README.md for the full list and build order (vspm_if needs
             vspm built first).
 
-        6. build-all
-            Build for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
+        6. firmware-pack
+            Package ATF's BL2/FIP into the boot-header + S-record form the board's
+            SCIF/Flash-Writer boot flow expects. Needs U-Boot already built (uboot all)
+            -- BL33=${UBOOT_DIR}/u-boot.bin is required for ATF's fip target.
+            <sub_command>:
+                - bptool (build the bptool host tool only)
+                - all
+
+        7. build-all
+            Build for all software stacks (Linux Kernel, U-Boot, ATF, Firmware-Pack,
+            Flash-Writer)
             <sub_command>: None
 
-        7. clean-all
-            Clean for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
+        8. clean-all
+            Clean for all software stacks (Linux Kernel, U-Boot, ATF, Firmware-Pack,
+            Flash-Writer)
             <sub_command>: None
 
 For example: 
