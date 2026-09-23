@@ -6,6 +6,8 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 
 ```
 .
+├── kernel-modules
+├── ATF_patches
 ├── build_atf.sh
 ├── build_firmware_pack.sh
 ├── build_flash_writer.sh
@@ -36,29 +38,6 @@ sudo apt install \
     libgnutls28-dev \
     srecord
 ```
-
-- `device-tree-compiler` (`dtc`): needed by both U-Boot and ATF (`build_uboot.sh`,
-  `build_atf.sh`) to compile the `.dts` sources into `.dtb` files. The kernel build
-  does not need this package -- it vendors and builds its own `scripts/dtc/dtc`.
-- `libgnutls28-dev`: needed by U-Boot's host-side `tools/mkeficapsule` (EFI capsule
-  update image generator), built as part of `make tools` even though this board's
-  boot flow does not use EFI capsule updates.
-- `srecord` (provides `srec_cat`): without it, U-Boot's build prints
-  `srec_cat: not found` and `expr: syntax error: unexpected argument '1.60'` partway
-  through (a version-check `$(shell ...)` call in the Makefile gets an empty result
-  and confuses the following `expr`). Cosmetic, not fatal -- the build still
-  completes and `u-boot.bin`/`u-boot.elf` are unaffected -- but installing this
-  package silences it.
-
-If a source directory (`KERNEL_DIR`, `UBOOT_DIR`, `ATF_DIR`, `FLASH_WRITER_DIR`)
-does not exist yet, the matching `build_<target>.sh` clones it automatically
-over SSH using the `*_REPO`/`*_BRANCH` values in `config.ini` (see below) --
-this needs a GitHub-authorized SSH key available to whichever user runs the
-script. In a Docker container this key is *not* inherited from the host
-automatically; either bind-mount the host's `~/.ssh` into the container, or
-copy `id_rsa`/`id_rsa.pub` in manually, matching the user the build actually
-runs as inside the container (e.g. `root` for a plain `docker exec <container>
-...` with no `-u`).
 
 ## Usage
 
@@ -128,60 +107,10 @@ Note: Before executing the build, please make sure that you have updated the con
 ### config.ini
 
 This configuration file contains the configurations for the build. Please make sure that you review all the settings carefully before performing a build.
-
-- **PLATFORM**: Select the supported platform.
+```bash
 - **KERNEL_DIR**: Address the Linux Kernel source code location.
 - **KERNEL_MODULES_OUTPUT_DIR**: Address the output directory for the Linux Kernel modules.
 - **UBOOT_DIR**: Address the U-Boot source code location.
 - **ATF_DIR**: Address the ATF source code location.
 - **FLASH_WRITER_DIR**: Address the Flash-Writer source code location.
-- **ATF_MODE**: Select the mode for ATF images.
-- **KERNEL_REPO/KERNEL_BRANCH, UBOOT_REPO/UBOOT_BRANCH, ATF_REPO/ATF_BRANCH,
-  FLASH_WRITER_REPO/FLASH_WRITER_BRANCH**: used only to auto-clone the matching
-  `*_DIR` above if it does not already exist -- each `build_<target>.sh` checks
-  this at startup (`ensure_src_dir()` in `common.sh`) before building. An
-  existing checkout at `*_DIR` is always left alone, whatever branch it is on;
-  a directory that exists but is not a git repo (e.g. empty) is treated as an
-  error rather than auto-cloned into. `KERNEL_BRANCH` in particular is often
-  overridden per task (e.g. switching between the std and RT porting
-  branches) -- update it to match whichever branch you actually want cloned.
-  Cloning is done with the invoking user's own git/SSH credentials, so it
-  only works where those already have access to the repos (see the Docker
-  note below for the `son_ubuntu_24`-style container setup).
-- **BPTOOL_DIR/BPTOOL_REPO/BPTOOL_SRCREV**: source location for `bptool`, a native
-  host tool used only by `build_firmware_pack.sh` (see below). Pinned to a fixed
-  commit (`ensure_src_dir_at_rev()` in `common.sh`, re-syncs an existing checkout
-  that is on the wrong commit) in a repo separate from `ATF_DIR`/`ATF_REPO` --
-  `bptool`'s own Makefile still `include`s `make_helpers/build_env.mk`, a file
-  upstream TF-A removed from `ATF_DIR`'s branch when it dropped Windows-native
-  build support (only Renesas's own `tools/renesas/*` Makefiles were never
-  updated to match), so it cannot be built out of `ATF_DIR` itself.
-- **BL2_BASE_ADDR/BL2_ADJUST_VMA/FIP_ADJUST_VMA, BL2_BOOT_TARGET,
-  FIRMWARE_PACK_OUTPUT_DIR**: used only by `build_firmware_pack.sh` (see below).
-
-### build_firmware_pack.sh
-
-Standalone script (not wired into `main_build.sh`, same as `kernel-modules/build_*.sh`)
-that packages ATF's BL2/FIP into the form the board's SCIF/Flash-Writer boot flow
-expects, ported from meta-renesas's `bptool-native.bb` + `firmware-pack.bb` Yocto
-recipes:
-
-1. Builds `bptool`, a native host tool, from `BPTOOL_DIR` (auto-cloned/pinned per
-   `config.ini`, see above).
-2. Builds ATF's `bl2`+`fip` targets against `ATF_DIR`, with `BL33` pointing at
-   `${UBOOT_DIR}/u-boot.bin` (required for the `fip` target) -- run
-   `./build_uboot.sh all` first if that does not exist yet.
-3. For each entry in `BL2_BOOT_TARGET` (`spi`, `mmc`, `esd`), runs `bptool` to
-   prepend a boot-parameter header to `bl2.bin`, then converts the result and
-   `fip.bin` to Motorola S-record (`.srec`) via `objcopy`.
-
-Output goes to `FIRMWARE_PACK_OUTPUT_DIR`. The resulting `bl2_bp_<target>.srec` and
-`fip-rzv2h-rdk.srec` are what `universal-scripts/host/tools/bootloader_flasher/
-bootloader_flash.py` expects for `--image_bl2`/`--image_fip`.
-
-```bash
-cd local-build-scripts
-./build_firmware_pack.sh all
 ```
-
-Usage: `./build_firmware_pack.sh [bptool|all]` (default `all`).

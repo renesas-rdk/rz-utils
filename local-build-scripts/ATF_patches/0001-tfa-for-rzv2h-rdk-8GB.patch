@@ -1,0 +1,27 @@
+From 6208aa2d544d97ef2ad96b394b1f79d8c0f6b565 Mon Sep 17 00:00:00 2001
+From: Cong Nguyen <cong.nguyen.zn@renesas.com>
+Date: Tue, 28 Jul 2026 03:52:40 +0000
+Subject: [PATCH] tfa for rzv2h rdk
+
+Signed-off-by: Cong Nguyen <cong.nguyen.zn@renesas.com>
+
+Upstream-Status: Pending
+
+diff --git a/plat/renesas/rz/soc/v2h/include/rz_soc_def.h b/plat/renesas/rz/soc/v2h/include/rz_soc_def.h
+index ed0b43980..e45ae890a 100644
+--- a/plat/renesas/rz/soc/v2h/include/rz_soc_def.h
++++ b/plat/renesas/rz/soc/v2h/include/rz_soc_def.h
+@@ -80,8 +80,8 @@
+ #define RZV2H_R8SRAM_SIZE			RZV2H_SRAM_SIZE
+ #define RZV2H_DEVICE_SIZE			(0x20000000 - RZV2H_DEVICE_BASE)
+ #define RZV2H_XSPI_SIZE				(RZV2H_PCIe_MIRROR_BASE - RZV2H_XSPI_MEMORY_MAP_BASE)
+-#define RZV2H_DDR0_SIZE				(RZV2H_DDR1_BASE - RZV2H_DDR0_BASE)
+-#define RZV2H_DDR1_SIZE				(RZV2H_PCIe0_BASE - RZV2H_DDR1_BASE)
++#define RZV2H_DDR0_SIZE				ULL(0x100000000)
++#define RZV2H_DDR1_SIZE				ULL(0x100000000)
+ 
+ #define RZV2H_BL2_END_OFFSET		UL(0x00060000)					/* This value is not checked/enforced anywhwere */
+ /*
+-- 
+2.43.0
+

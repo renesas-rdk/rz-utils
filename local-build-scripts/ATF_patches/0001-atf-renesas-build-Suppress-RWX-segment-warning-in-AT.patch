@@ -1,0 +1,29 @@
+From d446333994c55cc027ee590e05dc2c3cf1b6fa33 Mon Sep 17 00:00:00 2001
+From: Cong Nguyen <cong.nguyen.zn@renesas.com>
+Date: Wed, 12 Mar 2025 16:21:39 +0700
+Subject: [PATCH] atf: renesas: build: Suppress RWX segment warning in ATF 2.7
+ with binutils
+
+Upstream-Status: Pending
+
+Signed-off-by: Cong Nguyen <cong.nguyen.zn@renesas.com>
+diff --git a/Makefile b/Makefile
+index 92cd66845..733d9651a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -421,6 +421,7 @@ else ifneq ($(findstring gcc,$(notdir $(LD))),)
+ # Pass ld options with Wl or Xlinker switches
+ TF_LDFLAGS		+=	-Wl,--fatal-warnings -O1
+ TF_LDFLAGS		+=	-Wl,--gc-sections
++TF_LDFLAGS		+=	--no-warn-rwx-segment
+ ifeq ($(ENABLE_LTO),1)
+ 	ifeq (${ARCH},aarch64)
+ 		TF_LDFLAGS	+=	-flto -fuse-linker-plugin
+@@ -439,6 +440,7 @@ else
+ TF_LDFLAGS		+=	$(shell $(LD) --no-warn-rwx-segments -v >/dev/null 2>&1 && echo --no-warn-rwx-segments)
+ TF_LDFLAGS		+=	--fatal-warnings -O1
+ TF_LDFLAGS		+=	--gc-sections
++TF_LDFLAGS		+=	--no-warn-rwx-segment
+ # ld.lld doesn't recognize the errata flags,
+ # therefore don't add those in that case
+ ifeq ($(findstring ld.lld,$(notdir $(LD))),)
