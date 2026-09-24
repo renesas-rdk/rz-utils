@@ -69,6 +69,29 @@ fi
 
 echo "Using DEFCONFIG=${DEFCONFIG}"
 
+# Optional kernel variant. KERNEL_VARIANT=<name> merges
+# kernel-config/<name>.config on top of the board defconfig, producing a
+# second kernel from the same source tree. The variant fragment is the last
+# input to the merge, so it can override anything the board defconfig set -
+# including CONFIG_LOCALVERSION, which is what gives the variant its own
+# "uname -r" and its own /usr/lib/modules/<release>.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VARIANT_FRAGMENT=""
+if [ -n "${KERNEL_VARIANT:-}" ]; then
+	VARIANT_FRAGMENT="${SCRIPT_DIR}/kernel-config/${KERNEL_VARIANT}.config"
+	if [ ! -f "${VARIANT_FRAGMENT}" ]; then
+		echo "Error: unknown KERNEL_VARIANT '${KERNEL_VARIANT}'."
+		echo "       No such fragment: ${VARIANT_FRAGMENT}"
+		echo "Available variants:"
+		for f in "${SCRIPT_DIR}"/kernel-config/*.config; do
+			[ -e "$f" ] || { echo "  (none)"; break; }
+			echo "  $(basename "$f" .config)"
+		done
+		exit 1
+	fi
+	echo "Using KERNEL_VARIANT=${KERNEL_VARIANT} (${VARIANT_FRAGMENT})"
+fi
+
 # Setup the build
 kernel_setup() {
 	# Every platform defconfig in this tree already bakes in its own
@@ -82,6 +105,46 @@ kernel_setup() {
 	# Remove '+' at the end of kernel version
 	#touch .scmversion
 	export LOCALVERSION=""
+}
+
+# Concatenate the board defconfig and the variant fragment and let kconfig
+# fill in the defaults for everything else.
+mk_config_merged() {
+	local defconfig_file="arch/arm64/configs/${DEFCONFIG}"
+
+	if [ ! -f "${defconfig_file}" ]; then
+		echo "Error: missing kernel config input: ${KERNEL_DIR}/${defconfig_file}"
+		exit 1
+	fi
+
+	local merged
+	merged="$(mktemp -t rzv2h-merged-config.XXXXXX)"
+	cat "${defconfig_file}" > "${merged}"
+	# The variant fragment goes last: it is meant to override the board
+	# defconfig, including CONFIG_LOCALVERSION.
+	cat "${VARIANT_FRAGMENT}" >> "${merged}"
+
+	echo '|============================================|'
+	echo '|      Configure kernel (alldefconfig)       |'
+	echo '|============================================|'
+	make KCONFIG_ALLCONFIG="${merged}" alldefconfig
+	local rc=$?
+	rm -f "${merged}"
+	if [ ${rc} -ne 0 ]; then
+		echo "Error: kernel configuration failed"
+		exit ${rc}
+	fi
+}
+
+# Single choke point for turning DEFCONFIG into a .config: every call site
+# that used to run "make ${DEFCONFIG}" directly now goes through here, so
+# KERNEL_VARIANT applies regardless of which target triggered it.
+configure_kernel() {
+	if [ -n "${VARIANT_FRAGMENT}" ]; then
+		mk_config_merged
+	else
+		make ${DEFCONFIG}
+	fi
 }
 
 mk_image() {
@@ -100,7 +163,7 @@ mk_dtbs() {
 
 mk_full_image() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 	echo '|============================================|'
 	echo '|          Build IMAGE ARM64 RENESAS         |'
 	echo '|============================================|'
@@ -121,7 +184,7 @@ mk_distclean() {
 
 mk_defconfig() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 }
 
 mk_menuconfig() {
@@ -131,7 +194,7 @@ mk_menuconfig() {
 
 mk_modules() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 	mk_full_image
 	echo '|============================================|'
 	echo '|               Build modules                |'
