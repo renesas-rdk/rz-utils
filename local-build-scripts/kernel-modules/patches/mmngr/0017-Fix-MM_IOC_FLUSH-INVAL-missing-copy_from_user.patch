@@ -1,0 +1,61 @@
+Subject: [PATCH] mmngr: fix missing copy_from_user in MM_IOC_FLUSH/MM_IOC_INVAL
+
+MM_IOC_FLUSH and MM_IOC_INVAL cast the raw userspace ioctl arg pointer
+directly to struct MM_CACHE_PARAM * and dereference ->offset/->len without
+copy_from_user() -- a direct kernel-mode read of userspace memory outside
+the uaccess routines. Found via a real Oops on RZ/V2H RDK (kernel 6.18.20)
+when a DRP-AI inference workload (ROS2 rzv_object_detection/YOLOX) actually
+exercised the cache-flush path for the first time:
+
+  Unable to handle kernel access to user memory outside uaccess routines
+  Internal error: Oops: 000000009600000f [#1] SMP
+  pc : ioctl+0x288/0x1188 [mmngr]
+  Comm: yolox_object_de Tainted: G  O
+
+Confirmed by disassembling the loaded mmngr.ko (built with debug info) and
+mapping the faulting instruction (a raw ldp loading cachep->offset/len)
+back to this exact ioctl case via addr2line. MM_IOC_VTOP already copies its
+argument through a local struct via copy_from_user (see the
+Fix-ioctl-MM_IOC_VTOP-hang-up patch) -- apply the same pattern here.
+
+diff --git a/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c b/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c
+index 020b8ec..42e4cb8 100644
+--- a/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c
++++ b/mmngr_drv/mmngr/mmngr-module/files/mmngr/drv/mmngr_drv.c
+@@ -959,14 +959,30 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+ 		}
+ 		break;
+ 	case MM_IOC_FLUSH:
+-		cachep = (struct MM_CACHE_PARAM *)arg;
+-		dma_sync_single_for_device(mm_dev, p->hard_addr + cachep->offset,
+-					   cachep->len, DMA_FROM_DEVICE);
++		{
++			struct MM_CACHE_PARAM cache_temp;
++
++			if (copy_from_user(&cache_temp, (const void __user *)arg,
++					    sizeof(struct MM_CACHE_PARAM))) {
++				ret = -EFAULT;
++				goto exit;
++			}
++			dma_sync_single_for_device(mm_dev, p->hard_addr + cache_temp.offset,
++						   cache_temp.len, DMA_FROM_DEVICE);
++		}
+ 		break;
+ 	case MM_IOC_INVAL:
+-		cachep = (struct MM_CACHE_PARAM *)arg;
+-		dma_sync_single_for_cpu(mm_dev, p->hard_addr + cachep->offset,
+-					cachep->len, DMA_TO_DEVICE);
++		{
++			struct MM_CACHE_PARAM cache_temp;
++
++			if (copy_from_user(&cache_temp, (const void __user *)arg,
++					    sizeof(struct MM_CACHE_PARAM))) {
++				ret = -EFAULT;
++				goto exit;
++			}
++			dma_sync_single_for_cpu(mm_dev, p->hard_addr + cache_temp.offset,
++						cache_temp.len, DMA_TO_DEVICE);
++		}
+ 		break;
+ 	default:
+ 		pr_err("%s MMD CMD EFAULT\n", __func__);
