@@ -1,0 +1,17 @@
+0001-Add-physical-address-translating-feature.patch
+0002-mmngr_drv-mmngr-Add-checking-NULL-vma-in-mm_cnv_addr.patch
+0003-mmngr-Get-start-address-of-MMP-area-from-DT.patch
+0004-Do-not-parse-and-init-lossy-mem-area-for-RZ-G2L-Seri.patch
+0005-mmngr_drv-mmngr-Update-PA-VA-mapping-table-for-HiHop.patch
+0006-mmngr-change-address-setting-for-H3N-Swap-mode.patch
+0007-mmngr-Update-following-kernel-6.1.patch
+0008-Do-not-parse-and-init-lossy-mem-area-for-G2L-G3E-V2H.patch
+0009-mmngr-Add-MM_OMXBUF_SIZE-for-RZG2L-RZG3E-and-RZV2H-O.patch
+0010-Reduce-MM_OMXBUF_SIZE-for-omx.patch
+0011-Fix-ioctl-MM_IOC_VTOP-hang-up.patch
+0012-mmngr_drv-mmngr-module-drv-Update-physical-convert-f.patch
+0013-mmngr-lock-mm-read-before-finding-VMA.patch
+0014-rz-cmn-mmngr-supports-linux-6.10.patch
+0015-Handle-MM_OMXBUF_SIZE-dynamically.patch
+0016-kernel-6.18-follow_pfnmap-and-void-remove.patch
+0017-Fix-MM_IOC_FLUSH-INVAL-missing-copy_from_user.patch

@@ -1,0 +1,7 @@
+0001-Add-ISU-to-vspmif.patch
+0002-Remove-width-height-in-isu_dst_t.patch
+0002-rzg2l-sbc-Support-Linux-6.10.patch
+0003-Correcting-variable-type.patch
+0004-Remove-unused-memory.patch
+0005-Correction-32bit-variable.patch
+0006-kernel-6.18-ccflags-and-void-remove.patch

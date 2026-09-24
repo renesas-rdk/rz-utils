@@ -1,0 +1,35 @@
+Subject: [PATCH] vspm_if: adapt to kernel 6.18 ccflags-y and void platform
+ remove()
+
+Same EXTRA_CFLAGS -> ccflags-y switch as vspm (modern Kbuild dropped
+EXTRA_CFLAGS support, so vspm_if.h was never found), and
+platform_driver.remove must return void now, not int.
+
+Verified by a live cross-build against branch
+ubuntu/rz-v2h-rdk-rebase-6.18.20.
+---
+--- a/vspm_if-module/files/vspm_if/drv/Makefile
++++ b/vspm_if-module/files/vspm_if/drv/Makefile
+@@ -6,7 +6,7 @@
+ U_INCLUDE := -I$(PWD)
+ U_INCLUDE += -I$(PWD)/../include
+ U_INCLUDE += -I$(KERNELSRC)/include
+-EXTRA_CFLAGS += $(U_INCLUDE)
++ccflags-y += $(U_INCLUDE)
+
+ all:
+ 	make -C $(KERNELSRC) M=$(PWD) KBUILD_EXTRA_SYMBOLS=$(KERNELSRC)/include/vspm.symvers modules
+--- a/vspm_if-module/files/vspm_if/drv/vspm_if_main.c
++++ b/vspm_if-module/files/vspm_if/drv/vspm_if_main.c
+@@ -1019,10 +1019,9 @@
+ 	return 0;
+ }
+
+-static int vspm_if_remove(struct platform_device *pdev)
++static void vspm_if_remove(struct platform_device *pdev)
+ {
+ 	g_vspmif_pdev = NULL;
+-	return 0;
+ }
+
+ static const struct of_device_id vspm_if_of_match[] = {

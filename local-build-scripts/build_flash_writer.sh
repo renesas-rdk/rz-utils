@@ -10,10 +10,11 @@ fi
 
 # Check Flash-Writer location
 if [ -z "${FLASH_WRITER_DIR}" ]; then
-	echo "There is no Flash-writer source at ${FLASH_WRITER_DIR} or it does not set properly at config.ini file."
+	echo "FLASH_WRITER_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${FLASH_WRITER_DIR}" "${FLASH_WRITER_REPO:-}" "${FLASH_WRITER_BRANCH:-}" "Flash-Writer"
 
 # Map PLATFORM -> "PLAT BOARD"
 declare -A FW_P2B=(
@@ -54,7 +55,21 @@ mk_image_one() {
 	local platform="$1"
 	sanitize_env
 	resolve_fw_board "${platform}"
-	make -C "${FLASH_WRITER_DIR}" -j"${JOBS}" BOARD="${BOARD}"
+	# The upstream makefile sets CC/AS/LD/etc with '?=', which GNU Make treats
+	# as a no-op for these specific names -- they already have a "default"
+	# origin (plain cc/as/ld) from Make itself, and '?=' only assigns when a
+	# variable's origin is "undefined". Exporting CROSS_COMPILE alone is not
+	# enough; pass the tools explicitly as command-line make variables (highest
+	# precedence, does override the make-builtin defaults).
+	make -C "${FLASH_WRITER_DIR}" -j"${JOBS}" BOARD="${BOARD}" \
+		CROSS_COMPILE="${CROSS_COMPILE}" \
+		CC="${CROSS_COMPILE}gcc" \
+		CPP="${CROSS_COMPILE}cpp" \
+		AS="${CROSS_COMPILE}as" \
+		LD="${CROSS_COMPILE}ld" \
+		AR="${CROSS_COMPILE}ar" \
+		OBJDUMP="${CROSS_COMPILE}objdump" \
+		OBJCOPY="${CROSS_COMPILE}objcopy"
 }
 
 mk_clean_one() {

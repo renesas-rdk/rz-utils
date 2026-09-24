@@ -6,7 +6,10 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 
 ```
 .
+├── kernel-modules
+├── ATF_patches
 ├── build_atf.sh
+├── build_firmware_pack.sh
 ├── build_flash_writer.sh
 ├── build_kernel.sh
 ├── build_uboot.sh
@@ -15,7 +18,7 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 ├── main_build.sh
 └── README.md
 
-1 directory, 8 files
+1 directory, 9 files
 ```
 
 ## Prerequisites
@@ -30,7 +33,10 @@ sudo apt install \
     bc \
     bison \
     flex \
-    libssl-dev
+    libssl-dev \
+    device-tree-compiler \
+    libgnutls28-dev \
+    srecord
 ```
 
 ## Usage
@@ -80,7 +86,7 @@ Option:
                 - clean
                 - all
 
-        5. build-all
+        5. all
             Build for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
             <sub_command>: None
 
@@ -101,11 +107,10 @@ Note: Before executing the build, please make sure that you have updated the con
 ### config.ini
 
 This configuration file contains the configurations for the build. Please make sure that you review all the settings carefully before performing a build.
-
-- **PLATFORM**: Select the supported platform.
+```bash
 - **KERNEL_DIR**: Address the Linux Kernel source code location.
 - **KERNEL_MODULES_OUTPUT_DIR**: Address the output directory for the Linux Kernel modules.
 - **UBOOT_DIR**: Address the U-Boot source code location.
 - **ATF_DIR**: Address the ATF source code location.
 - **FLASH_WRITER_DIR**: Address the Flash-Writer source code location.
-- **ATF_MODE**: Select the mode for ATF images.
+```

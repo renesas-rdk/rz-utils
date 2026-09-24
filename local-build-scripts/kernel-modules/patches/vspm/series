@@ -1,0 +1,16 @@
+0001-Add-ISU-driver.patch
+0002-Add-option-ISU_CSC_RAW.patch
+0003-Add-ISU-to-VSPM.patch
+0004-Modify-Makefile.patch
+0005-remove-work-around-clock-reset-supply.patch
+0006-Support-MUTUAL-mode-for-ISU.patch
+0007-Update-and-fix-some-small-bugs-of-ISU-driver.patch
+0008-Correcting-variable-type.patch
+0009-Wrong-initialize-value-of-clip.patch
+0010-Fix-wrong-output-size-in-setting-case-rs_par-is-NULL.patch
+0011-Fix-error-cannot-detect-NOOUT-in-case-rs_par-NULL.patch
+0012-vspm_main-Update-isu-clock-enable.patch
+0013-vspm-isu-Check-addr-of-1st-plane-in-parameter-for-RP.patch
+0014-rzg2l-sbc-get-interrupt-number.patch
+0015-rzg2l-sbc-vspm-supports-kernel-6.10.patch
+0016-kernel-6.18-ccflags-and-void-remove.patch

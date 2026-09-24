@@ -3,6 +3,35 @@
 source ./config.ini
 source ./common.sh
 
+# Overrides common.sh's show_help (the full main_build.sh usage covering every
+# target) with one scoped to this script, since build_kernel.sh is meant to be
+# runnable standalone. Defined after sourcing common.sh so it shadows it.
+show_help() {
+	cat <<USAGE
+Usage: ./build_kernel.sh [sub_command]
+
+Build the Linux kernel (${KERNEL_DIR}). Called directly or via
+'./main_build.sh kernel <sub_command>'.
+
+  <sub_command>:
+    clean             make clean
+    distclean         make distclean
+    defconfig         Write config.ini's DEFCONFIG (kernel_setup + make <defconfig>)
+    menuconfig        defconfig, then make menuconfig
+    image             defconfig, then build Image
+    dtbs              defconfig, then build device trees
+    modules           defconfig + Image + dtbs + build modules
+    modules-install   modules, then install into KERNEL_MODULES_OUTPUT_DIR
+    all               defconfig + Image + dtbs + modules + modules-install
+                      (i.e. everything -- same as modules-install)
+
+Platform override: PLAT=RZV2H-RDK ./build_kernel.sh all
+  (defaults to config.ini's PLATFORM, which selects the DEFCONFIG -- see the
+  KERN_DEFCONFIG map in this script)
+USAGE
+	exit 1
+}
+
 # if PLATFORM is already exported from main_build.sh, keep it
 if [ -n "${PLATFORM:-}" ] && [ -n "${PLAT:-}" ]; then
 	PLATFORM="$PLAT"
@@ -10,10 +39,11 @@ fi
 
 # Check Linux Kernel location
 if [ -z "${KERNEL_DIR}" ]; then
-	echo "There is no Linux Kernel source at ${KERNEL_DIR} or it does not set properly at config.ini file."
+	echo "KERNEL_DIR is not set properly at config.ini file."
 	echo "Please recheck your setup"
 	exit 1
 fi
+ensure_src_dir "${KERNEL_DIR}" "${KERNEL_REPO:-}" "${KERNEL_BRANCH:-}" "Linux Kernel"
 
 # Default fallback
 DEFCONFIG="renesas_defconfig"
@@ -39,31 +69,81 @@ fi
 
 echo "Using DEFCONFIG=${DEFCONFIG}"
 
+# Optional kernel variant. KERNEL_VARIANT=<name> merges
+# kernel-config/<name>.config on top of the board defconfig, producing a
+# second kernel from the same source tree. The variant fragment is the last
+# input to the merge, so it can override anything the board defconfig set -
+# including CONFIG_LOCALVERSION, which is what gives the variant its own
+# "uname -r" and its own /usr/lib/modules/<release>.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VARIANT_FRAGMENT=""
+if [ -n "${KERNEL_VARIANT:-}" ]; then
+	VARIANT_FRAGMENT="${SCRIPT_DIR}/kernel-config/${KERNEL_VARIANT}.config"
+	if [ ! -f "${VARIANT_FRAGMENT}" ]; then
+		echo "Error: unknown KERNEL_VARIANT '${KERNEL_VARIANT}'."
+		echo "       No such fragment: ${VARIANT_FRAGMENT}"
+		echo "Available variants:"
+		for f in "${SCRIPT_DIR}"/kernel-config/*.config; do
+			[ -e "$f" ] || { echo "  (none)"; break; }
+			echo "  $(basename "$f" .config)"
+		done
+		exit 1
+	fi
+	echo "Using KERNEL_VARIANT=${KERNEL_VARIANT} (${VARIANT_FRAGMENT})"
+fi
+
 # Setup the build
 kernel_setup() {
-	CONFIG_LOCALVERSION='CONFIG_LOCALVERSION="-arm64-renesas"'
-	CONFIG_LOCALVERSION_AUTO='CONFIG_LOCALVERSION_AUTO=n'
-	FILE="arch/arm64/configs/${DEFCONFIG}"
+	# Every platform defconfig in this tree already bakes in its own
+	# CONFIG_LOCALVERSION and CONFIG_LOCALVERSION_AUTO=n (see
+	# renesas_defconfig, rzg2l-sbc_defconfig, rzv2h_defconfig) -- this
+	# used to also force CONFIG_LOCALVERSION="-arm64-renesas" here to
+	# paper over rzv2h_defconfig shipping a mismatched
+	# "-yocto-standard" value, but that defconfig has since been fixed
+	# to match the others directly, so the override is redundant now.
 
 	# Remove '+' at the end of kernel version
 	#touch .scmversion
 	export LOCALVERSION=""
+}
 
-	# Update defconfig to compatible with rootfs
-	if grep -q "$CONFIG_LOCALVERSION" "$FILE"; then
-		echo "Already set $CONFIG_LOCALVERSION"
-	else
-		echo "" >> "$FILE"
-		echo "$CONFIG_LOCALVERSION" >> "$FILE"
-		echo "Appended $CONFIG_LOCALVERSION to $FILE"
+# Concatenate the board defconfig and the variant fragment and let kconfig
+# fill in the defaults for everything else.
+mk_config_merged() {
+	local defconfig_file="arch/arm64/configs/${DEFCONFIG}"
+
+	if [ ! -f "${defconfig_file}" ]; then
+		echo "Error: missing kernel config input: ${KERNEL_DIR}/${defconfig_file}"
+		exit 1
 	fi
 
-	if grep -q "$CONFIG_LOCALVERSION_AUTO" "$FILE"; then
-		echo "Already set $CONFIG_LOCALVERSION_AUTO"
+	local merged
+	merged="$(mktemp -t rzv2h-merged-config.XXXXXX)"
+	cat "${defconfig_file}" > "${merged}"
+	# The variant fragment goes last: it is meant to override the board
+	# defconfig, including CONFIG_LOCALVERSION.
+	cat "${VARIANT_FRAGMENT}" >> "${merged}"
+
+	echo '|============================================|'
+	echo '|      Configure kernel (alldefconfig)       |'
+	echo '|============================================|'
+	make KCONFIG_ALLCONFIG="${merged}" alldefconfig
+	local rc=$?
+	rm -f "${merged}"
+	if [ ${rc} -ne 0 ]; then
+		echo "Error: kernel configuration failed"
+		exit ${rc}
+	fi
+}
+
+# Single choke point for turning DEFCONFIG into a .config: every call site
+# that used to run "make ${DEFCONFIG}" directly now goes through here, so
+# KERNEL_VARIANT applies regardless of which target triggered it.
+configure_kernel() {
+	if [ -n "${VARIANT_FRAGMENT}" ]; then
+		mk_config_merged
 	else
-		echo "" >> "$FILE"
-		echo "$CONFIG_LOCALVERSION_AUTO" >> "$FILE"
-		echo "Appended $CONFIG_LOCALVERSION_AUTO to $FILE"
+		make ${DEFCONFIG}
 	fi
 }
 
@@ -83,7 +163,7 @@ mk_dtbs() {
 
 mk_full_image() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 	echo '|============================================|'
 	echo '|          Build IMAGE ARM64 RENESAS         |'
 	echo '|============================================|'
@@ -104,7 +184,7 @@ mk_distclean() {
 
 mk_defconfig() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 }
 
 mk_menuconfig() {
@@ -114,7 +194,7 @@ mk_menuconfig() {
 
 mk_modules() {
 	kernel_setup
-	make ${DEFCONFIG}
+	configure_kernel
 	mk_full_image
 	echo '|============================================|'
 	echo '|               Build modules                |'
@@ -166,7 +246,7 @@ case ${1} in
 		mk_dtbs
 		;;
 	'all')
-		mk_full_image
+		mk_modules_install
 		;;
 	'modules')
 		mk_modules

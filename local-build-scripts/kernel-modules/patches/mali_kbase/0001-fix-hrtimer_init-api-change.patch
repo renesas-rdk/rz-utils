@@ -1,0 +1,493 @@
+From 3b90b34c9ce0881e83034d165c7085603654d9df Mon Sep 17 00:00:00 2001
+From: Tien Nguyen <tien.nguyen.uh@renesas.com>
+Date: Wed, 10 Jun 2026 11:49:05 +0000
+Subject: [PATCH] fix hrtimer_init api change
+
+Upstream-Status: Pending
+---
+ drivers/gpu/arm/midgard/Makefile              |  2 +-
+ .../midgard/arbiter/mali_kbase_arbiter_pm.c   |  4 ++--
+ .../backend/gpu/mali_kbase_irq_linux.c        |  5 ++---
+ .../midgard/backend/gpu/mali_kbase_jm_hw.c    |  4 ++--
+ .../backend/gpu/mali_kbase_js_backend.c       |  4 ++--
+ .../backend/gpu/mali_kbase_pm_driver.c        |  4 ++--
+ .../backend/gpu/mali_kbase_pm_metrics.c       |  4 ++--
+ .../gpu/arm/midgard/csf/mali_kbase_csf_kcpu.c | 16 ++++++++--------
+ .../midgard/csf/mali_kbase_csf_scheduler.c    |  8 ++++----
+ .../midgard/csf/mali_kbase_csf_tl_reader.c    |  4 ++--
+ .../gpu/arm/midgard/mali_kbase_core_linux.c   |  3 +--
+ .../gpu/arm/midgard/mali_kbase_fence_ops.c    | 16 +---------------
+ drivers/gpu/arm/midgard/mali_kbase_jd.c       |  2 +-
+ drivers/gpu/arm/midgard/mali_kbase_js.c       |  4 ++--
+ .../arm/midgard/mali_kbase_kinstr_prfcnt.c    |  4 ++--
+ .../gpu/arm/midgard/mali_kbase_mem_migrate.c  | 19 ++++++-------------
+ drivers/gpu/arm/midgard/mali_kbase_softjobs.c |  2 +-
+ drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c  |  1 -
+ .../gpu/arm/midgard/tl/mali_kbase_timeline.c  |  2 +-
+ 19 files changed, 42 insertions(+), 66 deletions(-)
+
+diff --git a/drivers/gpu/arm/midgard/Makefile b/drivers/gpu/arm/midgard/Makefile
+index c90d434..b4b869e 100644
+--- a/drivers/gpu/arm/midgard/Makefile
++++ b/drivers/gpu/arm/midgard/Makefile
+@@ -294,7 +294,7 @@ ifeq ($(CONFIG_MALI_KCOV),y)
+ endif
+ 
+ all:
+-	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
++	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) KCPPFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
+ 
+ modules_install:
+ 	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) modules_install
+diff --git a/drivers/gpu/arm/midgard/arbiter/mali_kbase_arbiter_pm.c b/drivers/gpu/arm/midgard/arbiter/mali_kbase_arbiter_pm.c
+index 5e4d4f2..842b7a4 100644
+--- a/drivers/gpu/arm/midgard/arbiter/mali_kbase_arbiter_pm.c
++++ b/drivers/gpu/arm/midgard/arbiter/mali_kbase_arbiter_pm.c
+@@ -289,8 +289,8 @@ int kbase_arbiter_pm_early_init(struct kbase_device *kbdev)
+ 	INIT_WORK(&arb_vm_state->vm_resume_work, kbase_arbiter_pm_resume_wq);
+ 	arb_vm_state->vm_arb_starting = false;
+ 	atomic_set(&kbdev->pm.gpu_users_waiting, 0);
+-	hrtimer_init(&arb_vm_state->vm_request_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	arb_vm_state->vm_request_timer.function = request_timer_callback;
++	hrtimer_setup(&arb_vm_state->vm_request_timer, request_timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	kbdev->pm.arb_vm_state = arb_vm_state;
+ 
+ 	err = kbase_arbif_init(kbdev);
+diff --git a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
+index 05e3590..fb9516c 100644
+--- a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
++++ b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
+@@ -358,9 +358,8 @@ static int validate_interrupt(struct kbase_device *const kbdev, u32 tag)
+ 			err = -EINVAL;
+ 		} else {
+ 			kbasep_irq_test_data.timeout = 0;
+-			hrtimer_init(&kbasep_irq_test_data.timer, CLOCK_MONOTONIC,
+-				     HRTIMER_MODE_REL);
+-			kbasep_irq_test_data.timer.function = kbasep_test_interrupt_timeout;
++			hrtimer_setup(&kbasep_irq_test_data.timer, kbasep_test_interrupt_timeout,
++						CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 
+ 			/* trigger interrupt */
+ 			kbase_reg_write32(kbdev, mask_offset, 0x1);
+diff --git a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_jm_hw.c b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_jm_hw.c
+index f28bc8e..337ac4a 100644
+--- a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_jm_hw.c
++++ b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_jm_hw.c
+@@ -1261,8 +1261,8 @@ int kbase_reset_gpu_init(struct kbase_device *kbdev)
+ 
+ 	INIT_WORK(&kbdev->hwaccess.backend.reset_work, kbasep_reset_timeout_worker);
+ 
+-	hrtimer_init(&kbdev->hwaccess.backend.reset_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	kbdev->hwaccess.backend.reset_timer.function = kbasep_reset_timer_callback;
++	hrtimer_setup(&kbdev->hwaccess.backend.reset_timer, kbasep_reset_timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_js_backend.c b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_js_backend.c
+index 2afc06a..cb8c602 100644
+--- a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_js_backend.c
++++ b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_js_backend.c
+@@ -322,8 +322,8 @@ int kbase_backend_timer_init(struct kbase_device *kbdev)
+ {
+ 	struct kbase_backend_data *backend = &kbdev->hwaccess.backend;
+ 
+-	hrtimer_init(&backend->scheduling_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	backend->scheduling_timer.function = timer_callback;
++	hrtimer_setup(&backend->scheduling_timer, timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	backend->timer_running = false;
+ 
+ 	return 0;
+diff --git a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_driver.c b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_driver.c
+index 479c9e5..2a8b506 100644
+--- a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_driver.c
++++ b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_driver.c
+@@ -2419,8 +2419,8 @@ int kbase_pm_state_machine_init(struct kbase_device *kbdev)
+ 
+ 	INIT_WORK(&stt->work, shader_poweroff_timer_stop_callback);
+ 
+-	hrtimer_init(&stt->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	stt->timer.function = shader_tick_timer_callback;
++	hrtimer_setup(&stt->timer, shader_tick_timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	stt->configured_interval = HR_TIMER_DELAY_NSEC(DEFAULT_PM_GPU_POWEROFF_TICK_NS);
+ 	stt->default_ticks = DEFAULT_PM_POWEROFF_TICK_SHADER;
+ 	stt->configured_ticks = stt->default_ticks;
+diff --git a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_metrics.c b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_metrics.c
+index 5e53904..4c21745 100644
+--- a/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_metrics.c
++++ b/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_pm_metrics.c
+@@ -137,8 +137,8 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
+ 	spin_lock_init(&kbdev->pm.backend.metrics.lock);
+ 
+ #ifdef CONFIG_MALI_MIDGARD_DVFS
+-	hrtimer_init(&kbdev->pm.backend.metrics.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	kbdev->pm.backend.metrics.timer.function = dvfs_callback;
++	hrtimer_setup(&kbdev->pm.backend.metrics.timer, dvfs_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	kbdev->pm.backend.metrics.initialized = true;
+ 	atomic_set(&kbdev->pm.backend.metrics.timer_state, TIMER_OFF);
+ 	kbase_pm_metrics_start(kbdev);
+diff --git a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_kcpu.c b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_kcpu.c
+index 1881f0c..f17ccc3 100644
+--- a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_kcpu.c
++++ b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_kcpu.c
+@@ -1390,7 +1390,7 @@ static void kbase_csf_fence_wait_callback(struct dma_fence *fence, struct dma_fe
+ 
+ #ifdef CONFIG_MALI_FENCE_DEBUG
+ 	/* Fence gets signaled. Deactivate the timer for fence-wait timeout */
+-	del_timer(&kcpu_queue->fence_timeout);
++	timer_delete(&kcpu_queue->fence_timeout);
+ #endif
+ 
+ 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_WAIT_END, kcpu_queue, fence->context,
+@@ -1418,7 +1418,7 @@ static void kbasep_kcpu_fence_wait_cancel(struct kbase_kcpu_command_queue *kcpu_
+ 		 * the timer would already have been deactivated inside
+ 		 * kbase_csf_fence_wait_callback().
+ 		 */
+-		del_timer_sync(&kcpu_queue->fence_timeout);
++		timer_delete_sync(&kcpu_queue->fence_timeout);
+ #endif
+ 		if (removed)
+ 			KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_WAIT_END, kcpu_queue,
+@@ -1719,11 +1719,11 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
+ 	 */
+ 	atomic_set(&kcpu_queue->fence_signal_pending_cnt, 0);
+ #ifdef CONFIG_MALI_FENCE_DEBUG
+-	del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
++	del = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+ 	dev_info(kctx->kbdev->dev, "kbase KCPU [%pK] delete fence signal timeout timer ret: %d",
+ 		 kcpu_queue, del);
+ #else
+-	del_timer_sync(&kcpu_queue->fence_signal_timeout);
++	timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+ #endif
+ }
+ 
+@@ -1797,13 +1797,13 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
+ #endif
+ 	} else {
+ #ifdef CONFIG_MALI_FENCE_DEBUG
+-		int del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
++		int del = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+ 
+ 		dev_dbg(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
+ 			del);
+ 		CSTD_UNUSED(del);
+ #else
+-		del_timer_sync(&kcpu_queue->fence_signal_timeout);
++		timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+ #endif
+ 	}
+ 
+@@ -2896,7 +2896,7 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
+ 			mutex_lock(&kcpu_queue->lock);
+ 
+ 			if (atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
+-				int ret = del_timer_sync(&kcpu_queue->fence_signal_timeout);
++				int ret = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+ 
+ 				dev_dbg(kbdev->dev,
+ 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
+@@ -2906,7 +2906,7 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
+ 
+ #ifdef CONFIG_MALI_FENCE_DEBUG
+ 			if (kcpu_queue->fence_wait_processed) {
+-				int ret = del_timer_sync(&kcpu_queue->fence_timeout);
++				int ret = timer_delete_sync(&kcpu_queue->fence_timeout);
+ 
+ 				dev_dbg(kbdev->dev,
+ 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
+diff --git a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_scheduler.c b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_scheduler.c
+index 2b3782e..080b0a5 100644
+--- a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_scheduler.c
++++ b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_scheduler.c
+@@ -6795,8 +6795,8 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
+ #endif /* !CONFIG_MALI_NO_MALI */
+ 
+ 	spin_lock_init(&scheduler->gpu_metrics_lock);
+-	hrtimer_init(&scheduler->gpu_metrics_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_SOFT);
+-	scheduler->gpu_metrics_timer.function = gpu_metrics_timer_callback;
++	hrtimer_setup(&scheduler->gpu_metrics_timer, gpu_metrics_timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL_SOFT);
+ #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+ 
+ 	atomic_set(&scheduler->gpu_idle_timer_enabled, false);
+@@ -6827,8 +6827,8 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
+ 	KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
+ 	scheduler->csg_scheduling_period_ms = CSF_SCHEDULER_TIME_TICK_MS;
+ 	scheduler_doorbell_init(kbdev);
+-	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	scheduler->tick_timer.function = tick_timer_callback;
++	hrtimer_setup(&scheduler->tick_timer, tick_timer_callback,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 
+ 	atomic_set(&scheduler->pending_sync_update_works, false);
+ 	spin_lock_init(&scheduler->sync_update_work_ctxs_lock);
+diff --git a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_tl_reader.c b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_tl_reader.c
+index 4ee64e1..7fae105 100644
+--- a/drivers/gpu/arm/midgard/csf/mali_kbase_csf_tl_reader.c
++++ b/drivers/gpu/arm/midgard/csf/mali_kbase_csf_tl_reader.c
+@@ -348,7 +348,7 @@ void kbase_csf_tl_reader_init(struct kbase_csf_tl_reader *self, struct kbase_tls
+ 
+ void kbase_csf_tl_reader_term(struct kbase_csf_tl_reader *self)
+ {
+-	del_timer_sync(&self->read_timer);
++	timer_delete_sync(&self->read_timer);
+ }
+ 
+ int kbase_csf_tl_reader_start(struct kbase_csf_tl_reader *self, struct kbase_device *kbdev)
+@@ -406,7 +406,7 @@ void kbase_csf_tl_reader_stop(struct kbase_csf_tl_reader *self)
+ 	/* Disable the tracebuffer on the CSFFW side. */
+ 	tl_reader_update_enable_bit(self, false);
+ 
+-	del_timer_sync(&self->read_timer);
++	timer_delete_sync(&self->read_timer);
+ 
+ 	spin_lock_irqsave(&self->read_lock, flags);
+ 
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index 3e27069..b9ff53b 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -4687,8 +4687,7 @@ int power_control_init(struct kbase_device *kbdev)
+ 	dev_dbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
+ 
+ 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
+-		kbdev->resets[i] = __of_reset_control_get(kbdev->dev->of_node, NULL, i,
+-							false, false, true);
++		kbdev->resets[i] = of_reset_control_get_exclusive_by_index(kbdev->dev->of_node, i);
+ 		if (IS_ERR_OR_NULL(kbdev->resets[i])) {
+ 			err = PTR_ERR(kbdev->resets[i]);
+ 			kbdev->resets[i] = NULL;
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_fence_ops.c b/drivers/gpu/arm/midgard/mali_kbase_fence_ops.c
+index b10e69c..4fb0703 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_fence_ops.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_fence_ops.c
+@@ -54,19 +54,6 @@ static bool kbase_fence_enable_signaling(struct dma_fence *fence)
+ 	return true;
+ }
+ 
+-static void kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
+-{
+-	char *format;
+-
+-	if (KERNEL_VERSION(5, 1, 0) > LINUX_VERSION_CODE)
+-		format = "%u";
+-	else
+-		format = "%llu";
+-
+-	if (unlikely(!scnprintf(str, (size_t)size, format, fence->seqno)))
+-		pr_err("Fail to encode fence seqno to string");
+-}
+-
+ #if MALI_USE_CSF
+ static void kbase_fence_release(struct dma_fence *fence)
+ {
+@@ -81,7 +68,6 @@ const struct dma_fence_ops kbase_fence_ops = { .wait = dma_fence_default_wait,
+ 					       .get_driver_name = kbase_fence_get_driver_name,
+ 					       .get_timeline_name = kbase_fence_get_timeline_name,
+ 					       .enable_signaling = kbase_fence_enable_signaling,
+-					       .fence_value_str = kbase_fence_fence_value_str,
+ 					       .release = kbase_fence_release };
+ #else
+ extern const struct dma_fence_ops kbase_fence_ops; /* silence checker warning */
+@@ -89,7 +75,7 @@ const struct dma_fence_ops kbase_fence_ops = { .wait = dma_fence_default_wait,
+ 					       .get_driver_name = kbase_fence_get_driver_name,
+ 					       .get_timeline_name = kbase_fence_get_timeline_name,
+ 					       .enable_signaling = kbase_fence_enable_signaling,
+-					       .fence_value_str = kbase_fence_fence_value_str };
++};
+ #endif /* MALI_USE_CSF */
+ 
+ KBASE_EXPORT_TEST_API(kbase_fence_ops);
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_jd.c b/drivers/gpu/arm/midgard/mali_kbase_jd.c
+index ddeae28..244a35c 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_jd.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_jd.c
+@@ -1477,7 +1477,7 @@ void kbase_jd_zap_context(struct kbase_context *kctx)
+ 	 * queued outside the job scheduler.
+ 	 */
+ 
+-	del_timer_sync(&kctx->soft_job_timeout);
++	timer_delete_sync(&kctx->soft_job_timeout);
+ 	list_for_each_safe(entry, tmp, &kctx->waiting_soft_jobs) {
+ 		katom = list_entry(entry, struct kbase_jd_atom, queue);
+ 		kbase_cancel_soft_job(katom);
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_js.c b/drivers/gpu/arm/midgard/mali_kbase_js.c
+index c465cc1..1c61a8a 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_js.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_js.c
+@@ -654,8 +654,8 @@ int kbasep_js_devdata_init(struct kbase_device *const kbdev)
+ 	}
+ 
+ #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+-	hrtimer_init(&jsdd->gpu_metrics_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	jsdd->gpu_metrics_timer.function = gpu_metrics_timer_callback;
++	hrtimer_setup(&jsdd->gpu_metrics_timer, gpu_metrics_timer_callback,
++				CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	jsdd->gpu_metrics_timer_needed = false;
+ 	jsdd->gpu_metrics_timer_running = false;
+ #endif
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_kinstr_prfcnt.c b/drivers/gpu/arm/midgard/mali_kbase_kinstr_prfcnt.c
+index 57e077c..ca11402 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_kinstr_prfcnt.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_kinstr_prfcnt.c
+@@ -1264,8 +1264,8 @@ int kbase_kinstr_prfcnt_init(struct kbase_hwcnt_virtualizer *hvirt,
+ 
+ 	mutex_init(&kinstr_ctx->lock);
+ 	INIT_LIST_HEAD(&kinstr_ctx->clients);
+-	hrtimer_init(&kinstr_ctx->dump_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+-	kinstr_ctx->dump_timer.function = kbasep_kinstr_prfcnt_dump_timer;
++	hrtimer_setup(&kinstr_ctx->dump_timer, kbasep_kinstr_prfcnt_dump_timer,
++			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	INIT_WORK(&kinstr_ctx->dump_work, kbasep_kinstr_prfcnt_dump_worker);
+ 
+ 	*out_kinstr_ctx = kinstr_ctx;
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_mem_migrate.c b/drivers/gpu/arm/midgard/mali_kbase_mem_migrate.c
+index bb69648..7c71ad6 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_mem_migrate.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_mem_migrate.c
+@@ -80,7 +80,7 @@ bool kbase_alloc_page_metadata(struct kbase_device *kbdev, struct page *p, dma_a
+ 
+ 	lock_page(p);
+ #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+-	__SetPageMovable(p, &movable_ops);
++	SetPageMovableOps(p);
+ 	page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ #else
+ 	/* In some corner cases, the driver may attempt to allocate memory pages
+@@ -101,7 +101,7 @@ bool kbase_alloc_page_metadata(struct kbase_device *kbdev, struct page *p, dma_a
+ 	 * gain the movable property later on in their life cycle.
+ 	 */
+ 	if (kbdev->mem_migrate.inode && kbdev->mem_migrate.inode->i_mapping) {
+-		__SetPageMovable(p, kbdev->mem_migrate.inode->i_mapping);
++		SetPageMovableOps(p);
+ 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ 	}
+ #endif
+@@ -155,7 +155,6 @@ static void kbase_free_pages_worker(struct work_struct *work)
+ 		lock_page(p);
+ 		page_md = kbase_page_private(p);
+ 		if (page_md && IS_PAGE_MOVABLE(page_md->status)) {
+-			__ClearPageMovable(p);
+ 			page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
+ 		}
+ 		kbase_free_page_metadata(kbdev, p, &group_id);
+@@ -237,18 +236,17 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
+ 
+ 	if (ret == 0) {
+ 		dma_unmap_page(kbdev->dev, old_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
+-		__ClearPageMovable(old_page);
+ 		ClearPagePrivate(old_page);
+ 		put_page(old_page);
+ 
+ #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+-		__SetPageMovable(new_page, &movable_ops);
++		SetPageMovableOps(new_page);
+ 		spin_lock(&page_md->migrate_lock);
+ 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ 		spin_unlock(&page_md->migrate_lock);
+ #else
+ 		if (kbdev->mem_migrate.inode->i_mapping) {
+-			__SetPageMovable(new_page, kbdev->mem_migrate.inode->i_mapping);
++			SetPageMovableOps(new_page);
+ 			spin_lock(&page_md->migrate_lock);
+ 			page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ 			spin_unlock(&page_md->migrate_lock);
+@@ -344,18 +342,17 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
+ 
+ 		/* Clear PG_movable from the old page and release reference. */
+ 		ClearPagePrivate(old_page);
+-		__ClearPageMovable(old_page);
+ 		put_page(old_page);
+ 
+ 		/* Set PG_movable to the new page. */
+ #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+-		__SetPageMovable(new_page, &movable_ops);
++		SetPageMovableOps(new_page);
+ 		spin_lock(&page_md->migrate_lock);
+ 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ 		spin_unlock(&page_md->migrate_lock);
+ #else
+ 		if (kbdev->mem_migrate.inode->i_mapping) {
+-			__SetPageMovable(new_page, kbdev->mem_migrate.inode->i_mapping);
++			SetPageMovableOps(new_page);
+ 			spin_lock(&page_md->migrate_lock);
+ 			page_md->status = PAGE_MOVABLE_SET(page_md->status);
+ 			spin_unlock(&page_md->migrate_lock);
+@@ -442,7 +439,6 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
+ 		break;
+ 	case NOT_MOVABLE:
+ 		/* Opportunistically clear the movable property for these pages */
+-		__ClearPageMovable(p);
+ 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
+ 		break;
+ 	default:
+@@ -565,7 +561,6 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
+ 		struct kbase_mem_migrate *mem_migrate = &kbdev->mem_migrate;
+ 
+ 		kbase_free_page_metadata(kbdev, old_page, NULL);
+-		__ClearPageMovable(old_page);
+ 		put_page(old_page);
+ 
+ 		/* Just free new page to avoid lock contention. */
+@@ -588,7 +583,6 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
+ 	 * expect.
+ 	 */
+ 	if (err < 0 && err != -EAGAIN) {
+-		__ClearPageMovable(old_page);
+ 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
+ 	}
+ 
+@@ -665,7 +659,6 @@ static void kbase_page_putback(struct page *p)
+ 	 */
+ 	if (status_mem_pool || status_free_isolated_in_progress ||
+ 	    status_free_pt_isolated_in_progress) {
+-		__ClearPageMovable(p);
+ 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
+ 		if (!WARN_ON_ONCE(!kbdev)) {
+ 			struct kbase_mem_migrate *mem_migrate = &kbdev->mem_migrate;
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_softjobs.c b/drivers/gpu/arm/midgard/mali_kbase_softjobs.c
+index 6bba629..d7b7cb8 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_softjobs.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_softjobs.c
+@@ -285,7 +285,7 @@ void kbasep_complete_triggered_soft_events(struct kbase_context *kctx, u64 evt)
+ 	}
+ 
+ 	if (cancel_timer)
+-		del_timer(&kctx->soft_job_timeout);
++		timer_delete(&kctx->soft_job_timeout);
+ 	spin_unlock_irqrestore(&kctx->waiting_soft_jobs_lock, lflags);
+ }
+ 
+diff --git a/drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c b/drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c
+index 7194ac6..967f5b4 100644
+--- a/drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c
++++ b/drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c
+@@ -4582,7 +4582,6 @@ static void kbase_mmu_mark_non_movable(struct kbase_device *const kbdev, struct
+ 	if (IS_PAGE_MOVABLE(page_md->status))
+ 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
+ 
+-	__ClearPageMovable(page);
+ 	spin_unlock(&page_md->migrate_lock);
+ 	unlock_page(page);
+ }
+diff --git a/drivers/gpu/arm/midgard/tl/mali_kbase_timeline.c b/drivers/gpu/arm/midgard/tl/mali_kbase_timeline.c
+index b4ffdaf..055bb88 100644
+--- a/drivers/gpu/arm/midgard/tl/mali_kbase_timeline.c
++++ b/drivers/gpu/arm/midgard/tl/mali_kbase_timeline.c
+@@ -269,7 +269,7 @@ void kbase_timeline_release(struct kbase_timeline *timeline)
+ 
+ 	/* Stop autoflush timer before releasing access to streams. */
+ 	atomic_set(&timeline->autoflush_timer_active, 0);
+-	del_timer_sync(&timeline->autoflush_timer);
++	timer_delete_sync(&timeline->autoflush_timer);
+ 
+ 	atomic_set(timeline->timeline_flags, 0);
+ }
+-- 
+2.43.0
+
