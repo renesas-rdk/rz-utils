@@ -94,7 +94,7 @@ weston + glmark2 with only patches 0001-0004 (0005/0006 removed, no longer neede
 - **uvcs_drv** (`0005`): void `.remove`; `del_timer()` → `timer_delete()`; `from_timer()` →
   `container_of()`.
 
-## WiFi driver support (Task 08 checklist item)
+## WiFi driver support
 
 Checked against `renesas_defconfig`:
 - `lwfinger/rtw88` — redundant, already in-tree (`CONFIG_RTW88_8822BU/8723DU/8821CU/8822CU=m`).
