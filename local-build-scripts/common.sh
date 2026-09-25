@@ -1,26 +1,10 @@
 #!/bin/bash
 
-# main_build.sh sets these too (with extra hardening CFLAGS on top), but each
-# build_<target>.sh is also meant to be runnable standalone -- default them
-# here so a direct invocation still cross-compiles instead of silently
-# falling back to the host gcc/as/ld and failing on target-specific flags
-# (e.g. -march=armv8-a+crc, -mstrict-align).
+# Default cross-compile vars so build_<target>.sh also works standalone.
 export ARCH="${ARCH:-arm64}"
 export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 
-# Each build_<target>.sh calls this before building, so a missing source
-# checkout fails fast with a clear message instead of deep inside `make`.
-#
-#   ensure_src_dir <dir> <repo> <branch> <label>
-#
-# - <dir> already exists and is a git repo (has .git)   -> left alone, no-op.
-#   This never pulls/resets an existing checkout -- it may hold local
-#   patches or be intentionally on a different branch than <branch>.
-# - <dir> does not exist                                -> git clone -b
-#   <branch> <repo> <dir>, using <repo>/<branch> from config.ini.
-# - <dir> exists but is NOT a git repo (e.g. empty)      -> error, stop.
-#   Refuses to clone into or delete a directory that might hold data we
-#   don't understand.
+# Clone <repo>@<branch> into <dir> if missing; no-op if already a git repo (never pulls/resets).
 ensure_src_dir() {
 	local dir="$1" repo="$2" branch="$3" label="$4"
 
@@ -44,14 +28,7 @@ ensure_src_dir() {
 	git clone --branch "${branch}" "${repo}" "${dir}"
 }
 
-# Like ensure_src_dir(), but pins to a fixed commit instead of a branch tip --
-# for tools whose source is only ever meant to be built at one exact
-# upstream revision (e.g. bptool, from a different repo than ATF_REPO).
-# Unlike ensure_src_dir(), this DOES re-sync an existing checkout when it is
-# sitting on the wrong commit -- there is no "local dev work" to preserve for
-# a pinned build tool.
-#
-#   ensure_src_dir_at_rev <dir> <repo> <rev> <label>
+# Like ensure_src_dir(), but pins to a fixed commit and re-syncs if it drifts.
 ensure_src_dir_at_rev() {
 	local dir="$1" repo="$2" rev="$3" label="$4"
 	local have

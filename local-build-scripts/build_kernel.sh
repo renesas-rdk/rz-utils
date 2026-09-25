@@ -3,9 +3,7 @@
 source ./config.ini
 source ./common.sh
 
-# Overrides common.sh's show_help (the full main_build.sh usage covering every
-# target) with one scoped to this script, since build_kernel.sh is meant to be
-# runnable standalone. Defined after sourcing common.sh so it shadows it.
+# Overrides common.sh's show_help with one scoped to this script.
 show_help() {
 	cat <<USAGE
 Usage: ./build_kernel.sh [sub_command]
@@ -69,12 +67,7 @@ fi
 
 echo "Using DEFCONFIG=${DEFCONFIG}"
 
-# Optional kernel variant. KERNEL_VARIANT=<name> merges
-# kernel-config/<name>.config on top of the board defconfig, producing a
-# second kernel from the same source tree. The variant fragment is the last
-# input to the merge, so it can override anything the board defconfig set -
-# including CONFIG_LOCALVERSION, which is what gives the variant its own
-# "uname -r" and its own /usr/lib/modules/<release>.
+# Optional: KERNEL_VARIANT=<name> merges kernel-config/<name>.config on top of the board defconfig.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VARIANT_FRAGMENT=""
 if [ -n "${KERNEL_VARIANT:-}" ]; then
@@ -92,23 +85,11 @@ if [ -n "${KERNEL_VARIANT:-}" ]; then
 	echo "Using KERNEL_VARIANT=${KERNEL_VARIANT} (${VARIANT_FRAGMENT})"
 fi
 
-# Setup the build
 kernel_setup() {
-	# Every platform defconfig in this tree already bakes in its own
-	# CONFIG_LOCALVERSION and CONFIG_LOCALVERSION_AUTO=n (see
-	# renesas_defconfig, rzg2l-sbc_defconfig, rzv2h_defconfig) -- this
-	# used to also force CONFIG_LOCALVERSION="-arm64-renesas" here to
-	# paper over rzv2h_defconfig shipping a mismatched
-	# "-yocto-standard" value, but that defconfig has since been fixed
-	# to match the others directly, so the override is redundant now.
-
-	# Remove '+' at the end of kernel version
-	#touch .scmversion
 	export LOCALVERSION=""
 }
 
-# Concatenate the board defconfig and the variant fragment and let kconfig
-# fill in the defaults for everything else.
+# Concatenate the board defconfig and the variant fragment, let kconfig fill in the rest.
 mk_config_merged() {
 	local defconfig_file="arch/arm64/configs/${DEFCONFIG}"
 
@@ -120,8 +101,7 @@ mk_config_merged() {
 	local merged
 	merged="$(mktemp -t rzv2h-merged-config.XXXXXX)"
 	cat "${defconfig_file}" > "${merged}"
-	# The variant fragment goes last: it is meant to override the board
-	# defconfig, including CONFIG_LOCALVERSION.
+	# Variant fragment goes last so it can override the board defconfig.
 	cat "${VARIANT_FRAGMENT}" >> "${merged}"
 
 	echo '|============================================|'
@@ -136,9 +116,7 @@ mk_config_merged() {
 	fi
 }
 
-# Single choke point for turning DEFCONFIG into a .config: every call site
-# that used to run "make ${DEFCONFIG}" directly now goes through here, so
-# KERNEL_VARIANT applies regardless of which target triggered it.
+# Single choke point for turning DEFCONFIG into a .config, so KERNEL_VARIANT always applies.
 configure_kernel() {
 	if [ -n "${VARIANT_FRAGMENT}" ]; then
 		mk_config_merged

@@ -3,8 +3,7 @@
 source ./config.ini
 source ./common.sh
 
-# ARCH/CROSS_COMPILE already exported by common.sh; add the extra hardening
-# flags/tools main_build.sh wants on top of that.
+# Extra hardening flags/tools on top of common.sh's ARCH/CROSS_COMPILE.
 export KERNEL_CROSS_COMPILE=${CROSS_COMPILE}
 export OECORE_TUNE_CCARGS=" -mcpu=cortex-a55+crypto -mbranch-protection=standard"
 export CC="aarch64-linux-gnu-gcc  -mcpu=cortex-a55+crypto -mbranch-protection=standard -fstack-protector-strong  -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security"

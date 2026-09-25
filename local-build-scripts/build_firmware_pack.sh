@@ -4,9 +4,7 @@ set -euo pipefail
 source ./config.ini
 source ./common.sh
 
-# Overrides common.sh's show_help (the full main_build.sh usage covering every
-# target) with one scoped to this script, since build_firmware_pack.sh is
-# meant to be runnable standalone, same as build_uboot.sh/build_atf.sh.
+# Overrides common.sh's show_help with one scoped to this script.
 show_help() {
 	cat <<USAGE
 Usage: ./build_firmware_pack.sh [sub_command]
@@ -39,9 +37,7 @@ fi
 
 JOBS="${JOBS:-$(nproc)}"
 
-# This repo's ATF build only really has one board target today (RZ-CMN's
-# PLAT=cmn/BOARD=rz_cmn -- see resolve_board() in build_atf.sh), so this
-# stays hardcoded rather than re-deriving it from PLATFORM.
+# Hardcoded: this repo's ATF build only has one board target today (RZ-CMN's PLAT=cmn/BOARD=rz_cmn).
 PLAT="cmn"
 BOARD="rz_cmn"
 
@@ -52,25 +48,14 @@ sanitize_env() {
 	unset CFLAGS LDFLAGS
 }
 
-# bptool.c + its Makefile are byte-identical to what ATF_DIR (rz-atf) ships
-# at the same tools/renesas/rz_boot_param/ path, but that Makefile also
-# `include`s ../../../make_helpers/build_env.mk -- a file ATF_DIR's own
-# styhead/rz-cmn branch no longer has (removed upstream by TF-A's "remove
-# Windows compatibility layer" commit, which updated every *other* tools/*
-# Makefile to match but never touched Renesas's own tools/renesas/* ones).
-# So building bptool straight out of ATF_DIR fails with "No rule to make
-# target '../../../make_helpers/build_env.mk'" -- BPTOOL_DIR's separately
-# pinned, older tree still has it, so that clone stays.
+# bptool built from BPTOOL_DIR, not ATF_DIR: ATF_DIR's Makefile include is missing on this branch.
 build_bptool() {
 	ensure_src_dir_at_rev "${BPTOOL_DIR}" "${BPTOOL_REPO:-}" "${BPTOOL_SRCREV:-}" "bptool"
 	echo "Building bptool in ${BPTOOL_DIR}"
 	make -C "${BPTOOL_DIR}/tools/renesas/rz_boot_param" bptool DEST_OFFSET_ADR="${BL2_BASE_ADDR}"
 }
 
-# Builds ATF's bl2+fip against this repo's own ATF_DIR checkout, same
-# PLAT/BOARD/LD as build_atf.sh, plus BL33 so the fip target has a BL33 image
-# to bundle -- mirrors TFA_BUILD_TARGET="bl2 fip" in
-# meta-rz-bsp/conf/machine/rzv2h-evk.conf.
+# Builds ATF's bl2+fip, with BL33 so fip has a BL33 image to bundle.
 build_atf_fip() {
 	if [ ! -f "${UBOOT_BIN}" ]; then
 		echo "Error: ${UBOOT_BIN} not found." >&2
@@ -79,15 +64,12 @@ build_atf_fip() {
 	fi
 
 	sanitize_env
-	# See build_atf.sh's mk_image_one() for why LD points at the raw linker
-	# instead of CROSS_COMPILE+gcc (rz_common.mk's unwrapped BL2_LDFLAGS).
+	# LD points at the raw linker, not CROSS_COMPILE+gcc -- see build_atf.sh.
 	make -C "${ATF_DIR}" -j"${JOBS}" PLAT="${PLAT}" BOARD="${BOARD}" \
 		LD="${CROSS_COMPILE}ld" BL33="${UBOOT_BIN}" bl2 fip
 }
 
-# ATF's own BUILD_PLAT layout under PLAT=cmn/BOARD=rz_cmn hasn't been
-# directly confirmed against the real rz-atf tree -- search for the output
-# rather than hardcoding a guessed path.
+# Search for the output rather than hardcoding ATF's BUILD_PLAT path (unconfirmed).
 find_atf_output() {
 	local name="$1" path
 	path="$(find "${ATF_DIR}/build" -type f -name "${name}" -print -quit 2>/dev/null)"

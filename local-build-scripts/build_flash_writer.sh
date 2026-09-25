@@ -55,12 +55,7 @@ mk_image_one() {
 	local platform="$1"
 	sanitize_env
 	resolve_fw_board "${platform}"
-	# The upstream makefile sets CC/AS/LD/etc with '?=', which GNU Make treats
-	# as a no-op for these specific names -- they already have a "default"
-	# origin (plain cc/as/ld) from Make itself, and '?=' only assigns when a
-	# variable's origin is "undefined". Exporting CROSS_COMPILE alone is not
-	# enough; pass the tools explicitly as command-line make variables (highest
-	# precedence, does override the make-builtin defaults).
+	# Pass tools explicitly: the makefile's '?=' won't override make's builtin CC/AS/LD defaults.
 	make -C "${FLASH_WRITER_DIR}" -j"${JOBS}" BOARD="${BOARD}" \
 		CROSS_COMPILE="${CROSS_COMPILE}" \
 		CC="${CROSS_COMPILE}gcc" \

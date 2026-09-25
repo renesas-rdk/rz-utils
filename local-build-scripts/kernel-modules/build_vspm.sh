@@ -1,11 +1,5 @@
 #!/bin/bash
-#
-# Build vspm.ko, the VSP manager out-of-tree kernel module that meta-renesas
-# packages as recipe kernel-module-vspm.
-#
-# Source: renesas-rcar/vspm_drv.git, at the revision meta-renesas pins,
-# patched with patches/vspm/.
-#
+# Build vspm.ko, the VSP manager out-of-tree kernel module
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

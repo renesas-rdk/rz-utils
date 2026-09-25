@@ -3,9 +3,7 @@
 source ./config.ini
 source ./common.sh
 
-# Overrides common.sh's show_help (the full main_build.sh usage covering every
-# target) with one scoped to this script, since build_uboot.sh is meant to be
-# runnable standalone. Defined after sourcing common.sh so it shadows it.
+# Overrides common.sh's show_help with one scoped to this script.
 show_help() {
 	cat <<USAGE
 Usage: ./build_uboot.sh [sub_command]

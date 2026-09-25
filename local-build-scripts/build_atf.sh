@@ -4,8 +4,7 @@ set -euo pipefail
 source ./config.ini
 source ./common.sh
 
-# Single-board build: PLAT/BOARD come from config.ini (ATF_PLAT/ATF_BOARD) so
-# switching board/platform only ever needs editing that file.
+# Single-board build: PLAT/BOARD come from config.ini's ATF_PLAT/ATF_BOARD.
 if [ -z "${ATF_PLAT:-}" ] || [ -z "${ATF_BOARD:-}" ]; then
 	echo "ATF_PLAT/ATF_BOARD are not set in config.ini." >&2
 	echo "Please recheck your setup" >&2
@@ -89,9 +88,7 @@ sanitize_env() {
 	unset CFLAGS LDFLAGS;
 }
 
-# Builds one RAM variant (8gb|16gb) and copies bl2.bin out of ATF's fixed
-# build/${PLAT}/release/ output dir into a variant-tagged name, so building
-# the other variant afterward doesn't clobber it.
+# Builds one RAM variant (8gb|16gb) and copies bl2.bin to a variant-tagged name.
 BUILD_OUT="${ATF_DIR}/build/${PLAT}/release"
 build_variant() {
 	local variant="$1"
