@@ -1,11 +1,6 @@
 #!/bin/bash
 #
-# Build mmngrbuf.ko, the companion out-of-tree kernel module to mmngr that
-# meta-renesas packages as recipe kernel-module-mmngrbuf.
-#
-# Source: renesas-rcar/mmngr_drv.git (same repo as mmngr, separate recipe and
-# patch series), at the revision meta-renesas pins, patched with
-# patches/mmngrbuf/.
+# Build mmngrbuf.ko, the companion out-of-tree kernel module to mmngr
 #
 set -uo pipefail
 

@@ -3,23 +3,6 @@
 # Build mali_kbase.ko, the PowerVR/Mali GPU out-of-tree kernel module, from
 # the Renesas Mali DDK tarball (mali-g31_km_v1.3.0.tar.gz).
 #
-# Started as a port of Task 06's build_mali_module.sh (same patches, DDK
-# tarball, and page-migration idea, cross-compiled with aarch64-linux-gnu-
-# instead of the SDK) -- but that script drove the kernel's Kbuild directly
-# (`make -C $KERNEL_DIR M=...`), which skips the DDK's own Makefile and with
-# it the translation of CONFIG_MALI_* into real -D flags. That produced a
-# mali_kbase.ko that *links* but fails `insmod` for real on hardware ("Unknown
-# symbol"); Task 06 never actually insmod-tested it. Fixed here by building
-# via the DDK's own Makefile (cd in, plain `make`) and adding real stub bodies
-# for the page-migration functions instead of an empty .c file -- see the
-# comments in mk_fetch/mk_build below.
-#
-# The DDK tarball is a proprietary Renesas download, not a public URL: point
-# MALI_DDK_TAR at a local copy (defaults to vendor/ alongside this checkout, so
-# it resolves both on the bare lab157 host and inside any container that only
-# bind-mounts the ubuntu_24 tree, e.g. son_ubuntu_24) or export
-# MALI_DDK_URL=file://... yourself.
-#
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

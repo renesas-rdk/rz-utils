@@ -1,15 +1,5 @@
 #!/bin/bash
-#
-# Build vspm_if.ko, the VSPM interface out-of-tree kernel module that
-# meta-renesas packages as recipe kernel-module-vspmif.
-#
-# Source: renesas-rcar/vspmif_drv.git, at the revision meta-renesas pins,
-# patched with patches/vspm_if/.
-#
-# Depends on vspm being built first: vspm_if.ko #includes vspm_public.h and
-# links against vspm's Module.symvers (staged by build_vspm.sh as
-# ${KERNEL_DIR}/include/vspm.symvers) -- run ./build_vspm.sh all before this.
-#
+# Build vspm_if.ko, the VSPM interface out-of-tree kernel module 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

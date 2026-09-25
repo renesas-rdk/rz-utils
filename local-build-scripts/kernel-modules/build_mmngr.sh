@@ -1,13 +1,5 @@
 #!/bin/bash
-#
-# Build mmngr.ko, the memory manager out-of-tree kernel module that
-# meta-renesas packages as recipe kernel-module-mmngr.
-#
-# Source: renesas-rcar/mmngr_drv.git, at the revision meta-renesas pins,
-# patched with the same patches (patches/mmngr/), plus a kernel-6.18 fix
-# (0016-...) for follow_pte() removal and the void platform .remove signature
-# -- verified by a live cross-build against ubuntu/rz-v2h-rdk-rebase-6.18.20.
-#
+# Build mmngr.ko, the memory manager out-of-tree kernel module
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,15 +28,9 @@ export KERNEL_SRC="${KERNEL_DIR}"
 export LDFLAGS=""
 export CP="cp"
 
-# Shared include staging dir. The recipe points INCSHARED at the Yocto sysroot
-# (STAGING_INCDIR); standalone we just need a directory the module Makefile
-# can copy its public headers into.
 export INCSHARED="${INCSHARED:-${EXT_MODULES_SRC_DIR}/staging/include}"
 mkdir -p "${INCSHARED}"
 
-# mmngr build-time defines, from meta-renesas: MMNGR_CFG defaults to
-# MMNGR_SALVATORX (only ek874 overrides it), and both the SSP and IPMMU MMU
-# features are disabled.
 export MMNGR_CONFIG="${MMNGR_CONFIG:-MMNGR_SALVATORX}"
 export MMNGR_SSP_CONFIG="${MMNGR_SSP_CONFIG:-MMNGR_SSP_DISABLE}"
 export MMNGR_IPMMU_MMU_CONFIG="${MMNGR_IPMMU_MMU_CONFIG:-IPMMU_MMU_DISABLE}"

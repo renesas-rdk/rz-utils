@@ -1,2 +1,5 @@
-0001-uvcs-support-linux-6.18-kernel-apis.patch
-0002-uvcs-timer-and-reset-control-api-kernel-6.18.patch
+0001-Fixing-build-error-kernel-module-uvcs.patch
+0002-kernel-module-uvcs-drv-fix-built-error-with-kernel-v.patch
+0003-Add-SMC-calls-for-uvcs-kernel.patch
+0004-rzg2l-sbc-Get-interrupt-number.patch
+0005-src-lkm-support-Linux-6.18-kernel-APIs.patch
