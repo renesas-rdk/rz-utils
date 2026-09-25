@@ -10,13 +10,14 @@ One self-contained script per module, no shared table to keep in sync:
 ```
 kernel-modules/
 ├── _lib.sh              # shared fetch/patch/build/install helpers, sourced by every script
+├── kernel_modules_all.sh # runs all 7 build_*.sh scripts in dependency order, prints a summary
 ├── build_mmngr.sh
 ├── build_mmngrbuf.sh
 ├── build_vspm.sh
 ├── build_vspm_if.sh     # depends on vspm being built first
 ├── build_mali_kbase.sh  # needs a local copy of the proprietary Mali DDK tarball (see below)
 ├── build_88x2bu.sh      # WiFi: RTL8812BU/8822BU USB dongle, not in the extra/ deb set
-├── build_uvcs_drv.sh    # Codec, sourced from the AI SDK's versioned tarball (see below)
+├── build_uvcs_drv.sh    # Codec, sourced from the renesas-sst tarball (see below)
 └── patches/<name>/      # per-module patch series (series file + .patch files)
 ```
 
@@ -48,19 +49,25 @@ staged as `$KERNEL_DIR/include/vspm.symvers`):
 ./build_vspm_if.sh all
 ```
 
+`kernel_modules_all.sh` runs all 7 scripts in that dependency order for you (`fetch`/`all`/
+`install`/`clean`, same subcommands), then prints an OK/FAILED summary per module:
+
+```bash
+./kernel_modules_all.sh install
+```
+
 `mali_kbase` needs a local copy of the proprietary Renesas Mali DDK tarball
 (`mali-g31_km_v1.3.0.tar.gz`) — the script defaults to `vendor/mali-g31_km_v1.3.0.tar.gz`
 alongside this checkout (i.e. `ubuntu_24/vendor/`, so it resolves both on the bare lab157 host
 and inside a container that only bind-mounts the `ubuntu_24` tree); override with
 `MALI_DDK_TAR=/path/to/tarball.tar.gz ./build_mali_kbase.sh all` elsewhere.
 
-`uvcs_drv` (`build_uvcs_drv.sh`) is sourced from the **AI SDK**'s
-(`rzv2h_ai-sdk_yocto_recipe_v8.00`) versioned tarball (`uvcs_kernel_package_v4.3.4.0.tar.bz2`),
-not the yocto_rzcmn_board (renesas-sst) one — that one ships as `uvcs_kernel_package.tar.bz2`
-with no version in the filename, so which revision it actually is could not be confirmed (see
-`Task/08_Update_rz-utils/Compare_Version/Compare_version.md`, item 5). Defaults to
-`vendor/uvcs_kernel_package_v4.3.4.0.tar.bz2` (same `vendor/` convention as `mali_kbase`);
-override with `UVCS_TAR=/path/to/tarball.tar.bz2 ./build_uvcs_drv.sh all` elsewhere.
+`uvcs_drv` (`build_uvcs_drv.sh`) is sourced from the **renesas-sst** (`yocto_rzcmn_board`)
+tarball, `uvcs_kernel_package.tar.bz2` — same source the Yocto `kernel-module-uvcs-drv` recipe
+uses, not the AI SDK's versioned one (see `Task/08_Update_rz-utils/Compare_Version/
+Compare_version.md`, item 5). Defaults to `vendor/uvcs_kernel_package.tar.bz2` (same `vendor/`
+convention as `mali_kbase`); override with `UVCS_TAR=/path/to/tarball.tar.bz2
+./build_uvcs_drv.sh all` elsewhere.
 
 ## Status
 
@@ -72,11 +79,13 @@ hardware** (over the board's serial console, kernel `6.18.20-yocto-standard+`):
 - `mali_kbase` — probed real hardware: `mali 14850000.gpu: GPU identified as 0x3 arch 7.0.9 r0p0`,
   `Probed as mali0`.
 
-`uvcs_drv` (`build_uvcs_drv.sh`) builds clean and is confirmed `insmod`-clean on real V2H RDK
-hardware (`modprobe uvcs_drv` succeeds, shows up in `lsmod`) — unlike the stale pre-built
-`uvcs_drv.ko` this session found already deployed on the board's NFS root, which failed
-`insmod` with the exact same ".gnu.linkonce.this_module section size must match" ABI error
-`mali_kbase.ko` also hits (see the open item below).
+`uvcs_drv` (`build_uvcs_drv.sh`, renesas-sst tarball + patch 0005) builds clean — verified
+2026-09-25 building the same source/patch via the Yocto `kernel-module-uvcs-drv` recipe (full
+`core-image-weston` image build passed). Not yet re-`insmod`-tested on board through this script
+specifically since the source switch (an earlier AI-SDK-sourced build was `insmod`-clean on real
+V2H RDK hardware, unlike the stale pre-built `uvcs_drv.ko` that session found already deployed on
+the board's NFS root, which failed `insmod` with the exact same ".gnu.linkonce.this_module
+section size must match" ABI error `mali_kbase.ko` also hits — see the open item below).
 
 `88x2bu` (`build_88x2bu.sh`) built clean (no kernel-6.18 patch needed) against a `git worktree` of
 `ubuntu/rz-v2h-rdk-rebase-6.18.20` and installs correctly, but is **not yet `insmod`-tested on real
@@ -153,13 +162,11 @@ guaranteed to still compile against 6.18.20, and in practice every module needed
   vars do — `build_88x2bu.sh` passes `KSRC=$KERNEL_DIR KVER=$(kernel_release)` as `make`
   command-line variables instead, which always win over a makefile's own `:=`/`?=` assignment
   regardless of how it was set internally.
-- **uvcs_drv** (`patches/uvcs_drv/0001-...patch`, `0002-...patch`) — the AI SDK's v4.3.4.0 source
-  targets kernel 6.1 and needed two real fixes for 6.18, found by live cross-build (not guessed):
-  void `platform_driver.remove` (same class as mmngr/vspm), and a timer/reset-control API rename
-  — `del_timer()` → `timer_delete()`, `from_timer()` → `timer_container_of()`, and
-  `devm_reset_control_array_get(dev, false, false)` → `devm_reset_control_array_get_exclusive(dev)`
-  (the 3-arg form was removed; the exclusive-wrapper reproduces the old call's
-  shared=false/optional=false semantics).
+- **uvcs_drv** (`patches/uvcs_drv/0005-src-lkm-support-Linux-6.18-kernel-APIs.patch`) — the
+  renesas-sst tarball's own upstream-pending fix (by Tien Nguyen, not written here): void
+  `platform_driver.remove` (same class as mmngr/vspm), and `del_timer()` → `timer_delete()`,
+  `from_timer()` → `container_of()`. The AI SDK source this repo used to build from (needing
+  different, hand-written 6.18 patches) is no longer used — see the `uvcs_drv` usage note above.
 
 ## WiFi driver support (Task 08 checklist item)
 
