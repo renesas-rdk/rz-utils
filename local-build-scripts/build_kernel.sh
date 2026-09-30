@@ -14,8 +14,7 @@ Build the Linux kernel (${KERNEL_DIR}). Called directly or via
   <sub_command>:
     clean             make clean
     distclean         make distclean
-    reset-src         Reset KERNEL_DIR to a clean checkout + reapply kernel_patches/series,
-                      without re-cloning (see clean_repo() in common.sh)
+    reset-src         Reset KERNEL_DIR to a clean checkout, without re-cloning
     defconfig         Write config.ini's DEFCONFIG (kernel_setup + make <defconfig>)
     menuconfig        defconfig, then make menuconfig
     image             defconfig, then build Image
@@ -44,14 +43,10 @@ if [ -z "${KERNEL_DIR}" ]; then
 	exit 1
 fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KERNEL_PATCH_DIR="${SCRIPT_DIR}/kernel_patches"
 
-# Ensure KERNEL_SRCREV 
+# Ensure KERNEL_SRCREV -- source repo builds as-is, no patches applied.
 if [ -n "${KERNEL_SRCREV:-}" ]; then
 	ensure_src_dir_at_rev "${KERNEL_DIR}" "${KERNEL_REPO:-}" "${KERNEL_SRCREV}" "Linux Kernel"
-	if [ "${SRC_JUST_SYNCED}" = "1" ]; then
-		apply_series_patches "${KERNEL_PATCH_DIR}" "${KERNEL_DIR}" "Linux Kernel"
-	fi
 else
 	ensure_src_dir "${KERNEL_DIR}" "${KERNEL_REPO:-}" "${KERNEL_BRANCH:-}" "Linux Kernel"
 fi
@@ -179,9 +174,6 @@ mk_distclean() {
 # reset ${KERNEL_DIR}
 mk_reset_src() {
 	clean_repo "${KERNEL_DIR}" "Linux Kernel"
-	if [ -n "${KERNEL_SRCREV:-}" ]; then
-		apply_series_patches "${KERNEL_PATCH_DIR}" "${KERNEL_DIR}" "Linux Kernel"
-	fi
 }
 
 mk_defconfig() {
