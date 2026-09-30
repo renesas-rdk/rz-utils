@@ -9,7 +9,8 @@ One self-contained script per module, no shared table to keep in sync:
 
 ```
 kernel-modules/
-├── _lib.sh              # shared fetch/patch/build/install helpers, sourced by every script
+├── common_modules.sh    # shared fetch/patch/build/install helpers, sourced by every script
+├── config.ini           # per-module URL/SRCREV or TAR/SHA256 defaults + <NAME>_PATCHES lists
 ├── kernel_modules_all.sh # runs all 7 build_*.sh scripts in dependency order, prints a summary
 ├── build_mmngr.sh
 ├── build_mmngrbuf.sh
@@ -18,20 +19,24 @@ kernel-modules/
 ├── build_mali_kbase.sh  # needs a local copy of the proprietary Mali DDK tarball (see below)
 ├── build_88x2bu.sh      # WiFi: RTL8812BU/8822BU USB dongle, not in the extra/ deb set
 ├── build_uvcs_drv.sh    # Codec, sourced from the renesas-sst tarball (see below)
-└── patches/<name>/      # per-module patch series (series file + .patch files)
+└── patches/<name>/      # per-module .patch files, applied in the order listed in config.ini's
+                          # <NAME>_PATCHES array (no series file any more)
 ```
 
 ## Usage
 
-Each script takes the same subcommands as the other `local-build-scripts/build_*.sh` files:
+Each script takes exactly one subcommand -- anything else prints the usage message:
 
 ```bash
 cd local-build-scripts/kernel-modules
-./build_mmngr.sh fetch      # clone/extract source + apply patches
-./build_mmngr.sh all        # fetch + build (default if no argument given)
-./build_mmngr.sh install    # build + install into KERNEL_MODULES_OUTPUT_DIR, refresh depmod
-./build_mmngr.sh clean      # make clean in the module's build dir
+./build_mmngr.sh all      # (re-)fetch source + re-apply every patch + build + install
+./build_mmngr.sh clean    # make clean in the module's build dir
 ```
+
+`all` always re-checks-out (git) or re-extracts (tarball) the source and re-applies every patch
+listed in config.ini's `<NAME>_PATCHES` first -- there's no stale-cache path, so editing a patch
+always takes effect on the next `all`. It does *not* run `make clean` first; call `clean`
+separately (or run it before `all`, like `main_build.sh` does) if you want a fully clean rebuild.
 
 Prerequisite: the kernel pointed at by `config.ini`'s `KERNEL_DIR` must already be built
 (`Module.symvers` present) — external modules link against it:
@@ -49,11 +54,11 @@ staged as `$KERNEL_DIR/include/vspm.symvers`):
 ./build_vspm_if.sh all
 ```
 
-`kernel_modules_all.sh` runs all 7 scripts in that dependency order for you (`fetch`/`all`/
-`install`/`clean`, same subcommands), then prints an OK/FAILED summary per module:
+`kernel_modules_all.sh` runs all 7 scripts in that dependency order for you (same `all`/`clean`
+subcommand), then prints an OK/FAILED summary per module:
 
 ```bash
-./kernel_modules_all.sh install
+./kernel_modules_all.sh all
 ```
 
 `mali_kbase` needs the proprietary Mali DDK tarball (`mali-g31_km_v1.3.0.tar.gz`), default

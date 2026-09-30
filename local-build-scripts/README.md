@@ -38,72 +38,6 @@ sudo apt install \
     libgnutls28-dev \
     srecord
 ```
-
-## Usage
-
-```
-Usage: 
-
-$ ./main_build.sh <target_build> <sub_command> 
-
-Option:
-    <target_build>:
-        1. kernel
-            Build for Linux Kernel
-            <sub_command>:
-                - clean
-                - distclean
-                - defconfig
-                - menuconfig
-                - image
-                - dtbs
-                - all
-                - modules
-                - modules-install
-
-        2. uboot
-            Build for U-Boot
-            <sub_command>:
-                - clean
-                - disclean
-                - defconfig
-                - image
-                - all
-
-        3. atf
-            Build for ATF
-            <sub_command>:
-                - clean
-                - distclean
-                - bl2
-                - bl31
-                - all
-                - dtbs (not supported yet)
-
-        4. flash-writer
-            Build for Flash-Writer
-            <sub_command>:
-                - clean
-                - all
-
-        5. all
-            Build for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
-            <sub_command>: None
-
-        6. clean-all
-            Clean for all software stacks (Linux Kernel, U-Boot, ATF, Flash-Writer)
-            <sub_command>: None
-
-For example: 
-    Build all images (Kernel image and device tree) for the Linux Kernel:
-        $ ./main-build.sh kernel full-image
-
-    Clean the Linux Kernel (Kernel image and device tree) output:
-        $ ./main-build.sh kernel clean
-
-Note: Before executing the build, please make sure that you have updated the configuration file: config.ini at the top of the build scripts folder.
-```
-
 ### config.ini
 
 This configuration file contains the configurations for the build. Please make sure that you review all the settings carefully before performing a build.
@@ -113,4 +47,63 @@ This configuration file contains the configurations for the build. Please make s
 - **UBOOT_DIR**: Address the U-Boot source code location.
 - **ATF_DIR**: Address the ATF source code location.
 - **FLASH_WRITER_DIR**: Address the Flash-Writer source code location.
+```
+
+
+## Usage
+
+```
+# Main:
+$ ./main_build.sh all
+	Build for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
+
+$ ./main_build.sh clean
+	Clean for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
+
+
+# Kernel:
+$ ./build_kernel.sh clean            # make clean
+$ ./build_kernel.sh distclean        # make distclean
+$ ./build_kernel.sh reset-src        # reset KERNEL_DIR to a clean checkout (no re-clone)
+$ ./build_kernel.sh defconfig        # write config.ini's DEFCONFIG
+$ ./build_kernel.sh menuconfig       # defconfig, then make menuconfig
+$ ./build_kernel.sh image            # defconfig, then build Image
+$ ./build_kernel.sh dtbs             # defconfig, then build device trees
+$ ./build_kernel.sh modules          # defconfig + Image + dtbs + build modules
+$ ./build_kernel.sh modules-install  # modules, then install into KERNEL_MODULES_OUTPUT_DIR
+$ ./build_kernel.sh all              # everything (same as modules-install)
+
+
+# U-Boot:
+$ ./build_uboot.sh clean       # make clean
+$ ./build_uboot.sh distclean   # make distclean
+$ ./build_uboot.sh defconfig   # write the board defconfig
+$ ./build_uboot.sh image       # build u-boot.bin only
+$ ./build_uboot.sh all         # defconfig + full image build
+
+
+# ATF:
+$ ./build_atf.sh clean       # reset the ATF tree, then make clean
+$ ./build_atf.sh distclean   # make distclean
+$ ./build_atf.sh 8gb         # build the 8GB-RAM board variant
+$ ./build_atf.sh 16gb        # build the 16GB-RAM board variant
+$ ./build_atf.sh all         # same as 16gb
+
+
+# Flash-writer:
+$ ./build_flash_writer.sh clean   # make clean
+$ ./build_flash_writer.sh all     # build the flash-writer image
+
+
+# Firmware-pack:
+$ ./build_firmware_pack.sh bptool   # build the bptool host tool only
+$ ./build_firmware_pack.sh all      # bptool, then package ATF's BL2/FIP (needs U-Boot built first)
+
+
+# Kernel modules (out-of-tree, see kernel-modules/README.md):
+$ ./build_<name>.sh all     # (re-)fetch source + re-apply every patch + build + install
+$ ./build_<name>.sh clean   # make clean in the module's build dir
+
+$ ./kernel-modules/kernel_modules_all.sh all    # runs all 7 build_<name>.sh all in dependency order
+$ ./kernel-modules/kernel_modules_all.sh clean  # same, for clean
 ```

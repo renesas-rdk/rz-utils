@@ -55,11 +55,21 @@ mk_clean() {
 	( cd "${BUILD_SUBDIR}" && make clean ) || true
 }
 
-# ---- Main: always clean + install, no other options ----
-echo "Starting the ${NAME} module build (clean + install)"
-echo "Source under ${SRC_DIR}"
-
-mk_clean
-mk_install
+# ---- Main ----
+case "${1-}" in
+	"all")
+		echo "Starting the ${NAME} module build (install)"
+		echo "Source under ${SRC_DIR}"
+		mk_install
+		;;
+	"clean")
+		echo "Starting the ${NAME} module clean"
+		echo "Source under ${SRC_DIR}"
+		mk_clean
+		;;
+	*)
+		show_help
+		;;
+esac
 
 exit 0

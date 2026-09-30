@@ -22,62 +22,29 @@ fi
 echo "Starting the build script at $(pwd)"
 echo "Target platform ${PLATFORM}"
 echo "Using cross toolchain prefix: ${CROSS_COMPILE}"
-if [ -z "${1}" ] ; then
-	show_help
-else
-	if [ -z "${2-}" ]; then
-		if [ "${1}" = "all" ] || [ "${1}" = "clean-all" ]; then
-			case ${1} in
-				"all")
-					./build_kernel.sh "all"
-					./build_uboot.sh "all"
-					./build_atf.sh "all"
-					./build_firmware_pack.sh "all"
-					./build_flash_writer.sh "all"
-					;;
-				"clean-all")
-					./build_kernel.sh "distclean"
-					./build_uboot.sh "distclean"
-					./build_atf.sh "distclean"
-					# build_firmware_pack.sh has no clean sub_command of its own
-					# (its output is just copied/objcopy'd binaries, no build state
-					# to distclean) -- remove its output dir directly instead.
-					rm -rf "${FIRMWARE_PACK_OUTPUT_DIR}"
-					./build_flash_writer.sh "clean"
-					;;
-				*)
-					show_help
-					;;
-			esac
-		else
-			show_help
-		fi
-	else
-		if [ "${1}" = "kernel" ] || [ "${1}" = "uboot" ] || [ "${1}" = "atf" ] || [ "${1}" = "firmware-pack" ] || [ "${1}" = "flash-writer" ]; then
-			case ${1} in
-				"kernel")
-					./build_kernel.sh "${2}"
-					;;
-				"uboot")
-					./build_uboot.sh "${2}"
-					;;
-				"atf")
-					./build_atf.sh "${2}"
-					;;
-				"firmware-pack")
-					./build_firmware_pack.sh "${2}"
-					;;
-				"flash-writer")
-					./build_flash_writer.sh "${2}"
-					;;
-				*)
-					show_help
-					;;
-			esac
-		else
-			show_help
-		fi
-	fi
-fi
+case "${1-}" in
+	"all")
+		./build_flash_writer.sh "all"
+		./build_atf.sh "all"
+		./build_uboot.sh "all"
+		./build_firmware_pack.sh "all"
+		./build_kernel.sh "clean"
+		./build_kernel.sh "all"
+		./kernel-modules/kernel_modules_all.sh "clean"
+		./kernel-modules/kernel_modules_all.sh "all"
+		;;
+	"clean")
+		./build_kernel.sh "distclean"
+		./build_uboot.sh "distclean"
+		./build_atf.sh "distclean"
+		# build_firmware_pack.sh has no clean sub_command
+		rm -rf "${FIRMWARE_PACK_OUTPUT_DIR}"
+		./build_flash_writer.sh "clean"
+		./kernel-modules/kernel_modules_all.sh "clean"
+		;;
+	*)
+		show_help
+		;;
+esac
 
 exit 0
