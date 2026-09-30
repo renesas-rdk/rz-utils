@@ -66,7 +66,6 @@ mk_build() {
 	kernel_is_built
 	mk_fetch
 	echo "--- building ${NAME}"
-	# Build via the DDK's own top-level Makefile, not the kernel's Kbuild directly -- that's what translates CONFIG_MALI_* into the driver's -D flags.
 	( unset CFLAGS CPPFLAGS CXXFLAGS
 	  cd "${SRC_DIR}/${BUILD_SUBDIR}" && make -j"$(nproc)" \
 		BUILD=release \
@@ -84,28 +83,16 @@ mk_install() {
 	install_module_ko "${NAME}" "${SRC_DIR}/${BUILD_SUBDIR}" "extra"
 }
 
-mk_reset_src() {
-	rm -f "${SRC_DIR}/.srcrev"
-	mk_fetch
-}
-
 mk_clean() {
 	[ -d "${SRC_DIR}/${BUILD_SUBDIR}" ] || return 0
 	( cd "${SRC_DIR}/${BUILD_SUBDIR}" && make clean ) || true
 }
 
-# ---- Main ----
-cmd="${1:-all}"
-echo "Starting the ${NAME} module build '${cmd}'"
+# ---- Main: always clean + install, no other options ----
+echo "Starting the ${NAME} module build (clean + install)"
 echo "Source under ${SRC_DIR}"
 
-case "${cmd}" in
-	fetch)   mk_fetch ;;
-	reset-src) mk_reset_src ;;
-	all)     mk_build ;;
-	install) mk_install ;;
-	clean)   mk_clean ;;
-	*)       show_help ;;
-esac
+mk_clean
+mk_install
 
 exit 0

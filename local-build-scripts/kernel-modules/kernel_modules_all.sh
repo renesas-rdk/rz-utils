@@ -1,13 +1,10 @@
 #!/bin/bash
 #
-# Build/install/clean all 7 out-of-tree kernel modules in dependency order (vspm before vspm_if).
-
+# Clean + build + install all 7 out-of-tree kernel modules
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
-
-cmd="${1:-all}"
 
 # Order matters: vspm before vspm_if.
 MODULES=(mmngr mmngrbuf vspm vspm_if mali_kbase uvcs_drv 88x2bu)
@@ -18,9 +15,9 @@ FAILED=0
 for name in "${MODULES[@]}"; do
 	echo
 	echo '================================================================'
-	echo "  ${name}: ./build_${name}.sh ${cmd}"
+	echo "  ${name}: ./build_${name}.sh (clean + install)"
 	echo '================================================================'
-	if "./build_${name}.sh" "${cmd}"; then
+	if "./build_${name}.sh"; then
 		RESULT["${name}"]="OK"
 	else
 		RESULT["${name}"]="FAILED"
@@ -30,7 +27,7 @@ done
 
 echo
 echo '================================================================'
-echo "  Summary (${cmd})"
+echo "  Summary (clean + install)"
 echo '================================================================'
 for name in "${MODULES[@]}"; do
 	printf '  %-12s %s\n' "${name}" "${RESULT[${name}]}"

@@ -1,4 +1,0 @@
-0001-mmngrbuf-Add-support-dmabuf_vmap-api.patch
-0002-mmngrbuf-Update-following-kernel-6.1.patch
-0003-mmngrbuf-Using-vm_flags_set-to-modify-flags.patch
-0004-mmngrbuf-update-following-kernel-6.18.patch

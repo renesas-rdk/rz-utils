@@ -50,28 +50,16 @@ mk_install() {
 	install_module_ko "${NAME}" "${BUILD_SUBDIR}" "extra"
 }
 
-mk_reset_src() {
-	rm -f "${SRC_DIR}/.srcrev"
-	mk_fetch
-}
-
 mk_clean() {
 	[ -d "${BUILD_SUBDIR}" ] || return 0
 	( cd "${BUILD_SUBDIR}" && make clean ) || true
 }
 
-# ---- Main ----
-cmd="${1:-all}"
-echo "Starting the ${NAME} module build '${cmd}'"
+# ---- Main: always clean + install, no other options ----
+echo "Starting the ${NAME} module build (clean + install)"
 echo "Source under ${SRC_DIR}"
 
-case "${cmd}" in
-	fetch)   mk_fetch ;;
-	reset-src) mk_reset_src ;;
-	all)     mk_build ;;
-	install) mk_install ;;
-	clean)   mk_clean ;;
-	*)       show_help ;;
-esac
+mk_clean
+mk_install
 
 exit 0
