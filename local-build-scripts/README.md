@@ -53,7 +53,7 @@ This configuration file contains the configurations for the build. Please make s
 ## Usage
 
 ```
-# Main:
+# Build all componets:
 $ ./main_build.sh all
 	Build for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
 
@@ -61,44 +61,28 @@ $ ./main_build.sh clean
 	Clean for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
 
 
+# Build only 1 component:
 # Kernel:
 $ ./build_kernel.sh clean            # make clean
-$ ./build_kernel.sh distclean        # make distclean
-$ ./build_kernel.sh reset-src        # reset KERNEL_DIR to a clean checkout (no re-clone)
-$ ./build_kernel.sh defconfig        # write config.ini's DEFCONFIG
-$ ./build_kernel.sh menuconfig       # defconfig, then make menuconfig
-$ ./build_kernel.sh image            # defconfig, then build Image
-$ ./build_kernel.sh dtbs             # defconfig, then build device trees
-$ ./build_kernel.sh modules          # defconfig + Image + dtbs + build modules
-$ ./build_kernel.sh modules-install  # modules, then install into KERNEL_MODULES_OUTPUT_DIR
 $ ./build_kernel.sh all              # everything (same as modules-install)
-
 
 # U-Boot:
 $ ./build_uboot.sh clean       # make clean
-$ ./build_uboot.sh distclean   # make distclean
-$ ./build_uboot.sh defconfig   # write the board defconfig
-$ ./build_uboot.sh image       # build u-boot.bin only
 $ ./build_uboot.sh all         # defconfig + full image build
-
 
 # ATF:
 $ ./build_atf.sh clean       # reset the ATF tree, then make clean
-$ ./build_atf.sh distclean   # make distclean
 $ ./build_atf.sh 8gb         # build the 8GB-RAM board variant
 $ ./build_atf.sh 16gb        # build the 16GB-RAM board variant
 $ ./build_atf.sh all         # same as 16gb
-
 
 # Flash-writer:
 $ ./build_flash_writer.sh clean   # make clean
 $ ./build_flash_writer.sh all     # build the flash-writer image
 
-
 # Firmware-pack:
 $ ./build_firmware_pack.sh bptool   # build the bptool host tool only
 $ ./build_firmware_pack.sh all      # bptool, then package ATF's BL2/FIP (needs U-Boot built first)
-
 
 # Kernel modules (out-of-tree, see kernel-modules/README.md):
 $ ./build_<name>.sh all     # (re-)fetch source + re-apply every patch + build + install
