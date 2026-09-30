@@ -37,9 +37,13 @@ fi
 
 JOBS="${JOBS:-$(nproc)}"
 
-# Hardcoded: this repo's ATF build only has one board target today (RZ-CMN's PLAT=cmn/BOARD=rz_cmn).
-PLAT="cmn"
-BOARD="rz_cmn"
+# PLAT/BOARD come from config.ini
+if [ -z "${ATF_PLAT:-}" ] || [ -z "${ATF_BOARD:-}" ]; then
+	echo "ATF_PLAT/ATF_BOARD are not set in config.ini." >&2
+	exit 1
+fi
+PLAT="${ATF_PLAT}"
+BOARD="${ATF_BOARD}"
 
 BPTOOL_BIN="${BPTOOL_DIR}/tools/renesas/rz_boot_param/bptool"
 UBOOT_BIN="${UBOOT_DIR}/u-boot.bin"
