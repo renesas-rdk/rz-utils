@@ -1,0 +1,108 @@
+From aeebb61e4308ba51abc70c0841347d6409fb0b0f Mon Sep 17 00:00:00 2001
+From: Cong Nguyen <cong.nguyen.zn@renesas.com>
+Date: Sat, 11 Oct 2025 09:33:17 +0000
+Subject: [PATCH] Bring GPU clock init back
+
+Upstream-Status: Pending
+
+Signed-off-by: Cong Nguyen <cong.nguyen.zn@renesas.com>
+---
+ plat/renesas/rz/soc/v2h/drivers/cpg.c      | 51 ++++++++++++++++++++++
+ plat/renesas/rz/soc/v2h/include/cpg_regs.h |  5 +++
+ 2 files changed, 56 insertions(+)
+
+diff --git a/plat/renesas/rz/soc/v2h/drivers/cpg.c b/plat/renesas/rz/soc/v2h/drivers/cpg.c
+index e51b8ee39..ca3723c05 100644
+--- a/plat/renesas/rz/soc/v2h/drivers/cpg.c
++++ b/plat/renesas/rz/soc/v2h/drivers/cpg.c
+@@ -206,6 +206,29 @@ static CPG_PLL_SETTINGS cpg_pll_tbl[] = {
+ 
+ 	/* CPG_PLLDDR0 and CPG_PLLDDR1 are set in DDR setup routine */
+ 
++	{	/* GPU */
++		.stby = {
++				.addr = (uintptr_t)CPG_PLLGPU_STBY,
++				.val  = 0x00050001,
++				},
++
++		.clk1 = {
++				.addr = (uintptr_t)CPG_PLLGPU_CLK1,
++				.val  = 0x00003482,
++				},
++
++
++		.clk2 = {
++				.addr = (uintptr_t)CPG_PLLGPU_CLK2,
++				.val  = 0x000C1A01,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_PLLGPU_MON,
++				.val  = 0,
++				},
++	},
++
+ 	{	/* DRP */
+ 		.stby = {
+ 				.addr = (uintptr_t)NULL,		/* Auto turn-on */
+@@ -427,6 +450,20 @@ static CPG_SETUP_DATA cpg_clk_on_tbl[] = {
+ 		.type = CPG_T_CLK
+ 	},
+ 
++	{	/* GPU */
++		.reg =  {
++				.addr = (uintptr_t)CPG_CLKON_15,
++				.val  = 0x00000007,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_CLKMON_7,
++				.val  = 0x00070000,
++				},
++
++		.type = CPG_T_CLK
++	},
++
+ 	{	/* Image Scaling Unit Part 1 */
+ 		.reg =  {
+ 				.addr = (uintptr_t)CPG_CLKON_14,
+@@ -1129,6 +1166,20 @@ static CPG_SETUP_DATA cpg_reset_tbl[] = {
+ 		.type = CPG_T_RST
+ 	},
+ 
++	{	/* GPU */
++		.reg =  {
++				.addr = (uintptr_t)CPG_RST_13,
++				.val  = 0x0000E000,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_RSTMON_6,
++				.val  = 0x0001C000,
++				},
++
++		.type = CPG_T_RST
++	},
++
+ 	{	/* Image Scaling Unit */
+ 		.reg =  {
+ 				.addr = (uintptr_t)CPG_RST_13,
+diff --git a/plat/renesas/rz/soc/v2h/include/cpg_regs.h b/plat/renesas/rz/soc/v2h/include/cpg_regs.h
+index 3b6d540b4..78b95ce77 100644
+--- a/plat/renesas/rz/soc/v2h/include/cpg_regs.h
++++ b/plat/renesas/rz/soc/v2h/include/cpg_regs.h
+@@ -37,6 +37,11 @@
+ #define	CPG_PLLDDR0_STBY			(CPG_BASE + 0x0E0)	/* PLLDDR0 standby control register */
+ #define	CPG_PLLDDR0_MON				(CPG_BASE + 0x0F0)	/* PLLDDR0 monitor register*/
+ 
++#define	CPG_PLLGPU_STBY				(CPG_BASE + 0x120)	/* PLLGPU standby control register */
++#define	CPG_PLLGPU_CLK1				(CPG_BASE + 0x124)	/* PLLGPU output clock setting register 1 */
++#define	CPG_PLLGPU_CLK2				(CPG_BASE + 0x128)	/* PLLGPU output clock setting register 2 */
++#define	CPG_PLLGPU_MON				(CPG_BASE + 0x130)	/* PLLGPU monitor register */
++
+ #define	CPG_PLLDDR1_STBY			(CPG_BASE + 0x100)	/* PLLDDR1standby control register*/
+ #define	CPG_PLLDDR1_MON				(CPG_BASE + 0x110)	/* PLLDDR1monitor register */
+ 
+-- 
+2.43.0
+

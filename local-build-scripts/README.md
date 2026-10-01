@@ -8,6 +8,9 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 .
 ├── kernel-modules
 ├── ATF_patches
+│   ├── rz-v2h-rdk-ver1       # 16GB-RAM board variant patches
+│   └── rz-v2h-rdk-ver101     # 8GB-RAM board variant patches
+├── u-boot_patches
 ├── build_atf.sh
 ├── build_firmware_pack.sh
 ├── build_flash_writer.sh
@@ -17,8 +20,6 @@ This directory contains build scripts for all software stacks of the RZ Board Su
 ├── config.ini
 ├── main_build.sh
 └── README.md
-
-1 directory, 9 files
 ```
 
 ## Prerequisites
@@ -38,50 +39,86 @@ sudo apt install \
     libgnutls28-dev \
     srecord
 ```
+
 ### config.ini
 
-This configuration file contains the configurations for the build. Please make sure that you review all the settings carefully before performing a build.
-```bash
-- **KERNEL_DIR**: Address the Linux Kernel source code location.
-- **KERNEL_MODULES_OUTPUT_DIR**: Address the output directory for the Linux Kernel modules.
-- **UBOOT_DIR**: Address the U-Boot source code location.
-- **ATF_DIR**: Address the ATF source code location.
-- **FLASH_WRITER_DIR**: Address the Flash-Writer source code location.
-```
+This configuration file contains the configurations for the build -- it is the
+single source of truth for what gets built: source repo/branch/pinned commit,
+which patches apply, and where output lands. Please review all the settings
+carefully before performing a build.
 
+```bash
+- **KERNEL** 
+- **KERNEL_MODULES**
+- **ATF**
+- **FLASH_WRITER**
+- **BPTOOL**
+- **FIRMWARE_PACK_OUTPUT**
+```
+## Output layout
+
+After building both variants, `RELEASE_OUTPUT_DIR` (`$WORKDIR/release` by
+default) looks like:
+
+```
+release/
+├── rzv2h-rdk-ver1/        # 16GB-RAM board
+│   ├── u-boot.bin / .srec
+│   ├── bl2.bin
+│   ├── bl2_bp_{spi,mmc,esd}.bin / .srec
+│   └── fip.bin / .srec
+└── rzv2h-rdk-ver101/      # 8GB-RAM board
+    └── (same set)
+```
 
 ## Usage
 ```bash
-# Build all componets:
+# Build everything by main_build.sh:
+# -- Flash-Writer 
+# -- ATF
+# -- U-Boot
+# -- Firmware-Pack
+# -- Kernel + kernel modules
 $ ./main_build.sh all
-	Build for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
-
 $ ./main_build.sh clean
-	Clean for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
 
-
-# Build only 1 component:
 # Kernel:
-$ ./build_kernel.sh clean            # make clean
-$ ./build_kernel.sh all              # everything (same as modules-install)
+$ ./build_kernel.sh clean
+$ ./build_kernel.sh reset-src         # reset to KERNEL_SRCREV, no build
+$ ./build_kernel.sh all               # defconfig + Image + dtbs + modules + modules-install
+	Builds rzv2h-rdk-ver1.dtb and rzv2h-rdk-ver101.dtb together (one kernel
+	Image serves both boards; only U-Boot needs a separate build per variant).
 
-# U-Boot:
-$ ./build_uboot.sh clean       # make clean
-$ ./build_uboot.sh all         # defconfig + full image build
+# U-Boot
+$ ./build_uboot.sh clean
+$ ./build_uboot.sh reset-src          # reset UBOOT_DIR + reapply UBOOT_PATCHES only, no build
+$ ./build_uboot.sh all                # defconfig (ver101) + full image build, publishes to RELEASE_OUTPUT_DIR
+$ ./build_uboot.sh image              # rebuild with the existing .config, no defconfig/reset step
 
-# ATF:
-$ ./build_atf.sh clean       # reset the ATF tree, then make clean
-$ ./build_atf.sh 8gb         # build the 8GB-RAM board variant
-$ ./build_atf.sh 16gb        # build the 16GB-RAM board variant
-$ ./build_atf.sh all         # same as 16gb
+# ver1 (16GB) U-Boot -- manual until wired into build_uboot.sh's PLATFORM case:
+$ cd /workspace/workspace/u-boot
+$ export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+$ make rzv2h-rdk-ver1_defconfig && make -j$(nproc)
+$ cd - && ./build_uboot.sh image      # publishes it to RELEASE_OUTPUT_DIR/rzv2h-rdk-ver1/
+	(publish_release() reads CONFIG_DEFAULT_DEVICE_TREE from .config, so this
+	tags it correctly regardless of PLATFORM.)
+
+# ATF -- each variant can pin its own TF-A commit and patch set (config.ini's
+# ATF_SRCREV_<VARIANT> / ATF_PATCHES_<VARIANT>):
+$ ./build_atf.sh clean
+$ ./build_atf.sh ver1          # 16GB-RAM board variant
+$ ./build_atf.sh ver101        # 8GB-RAM board variant
+$ ./build_atf.sh all           # both, publishes bl2.bin to RELEASE_OUTPUT_DIR
 
 # Flash-writer:
-$ ./build_flash_writer.sh clean   # make clean
-$ ./build_flash_writer.sh all     # build the flash-writer image
+$ ./build_flash_writer.sh clean
+$ ./build_flash_writer.sh all
 
-# Firmware-pack:
-$ ./build_firmware_pack.sh bptool   # build the bptool host tool only
-$ ./build_firmware_pack.sh all      # bptool, then package ATF's BL2/FIP (needs U-Boot built first)
+# Firmware-pack -- needs U-Boot already built
+$ ./build_firmware_pack.sh bptool    # build the bptool host tool only
+$ ./build_firmware_pack.sh ver1
+$ ./build_firmware_pack.sh ver101
+$ ./build_firmware_pack.sh all       # bptool, then package both variants
 
 # Kernel modules (out-of-tree, see kernel-modules/README.md):
 $ ./build_<name>.sh all     # (re-)fetch source + re-apply every patch + build + install
