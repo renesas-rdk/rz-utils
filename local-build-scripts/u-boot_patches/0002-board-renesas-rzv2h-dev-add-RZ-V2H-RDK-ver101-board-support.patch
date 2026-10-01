@@ -1,0 +1,1306 @@
+From fe9119e97a48b9f6c2491f677a910c4030f7f97d Mon Sep 17 00:00:00 2001
+From: Cong Nguyen <cong.nguyen.zn@renesas.com>
+Date: Sun, 27 Sep 2026 14:07:40 +0000
+Subject: [PATCH] board: renesas: rzv2h-dev: add RZ/V2H RDK ver101 board
+ support
+
+Add TARGET_RZV2H_RDK, rzv2h-rdk_defconfig and rzv2h-rdk-ver101.dts for
+the RZ/V2H RDK ver101, a custom board derived from the RZ/V2H EVK ver1.
+
+Differences from EVK ver1:
+- DDR: 8GB Foresee LPDDR4X, 4GB per channel
+  (0x0_4800_0000-0x1_3FFF_FFFF, 0x2_4000_0000-0x3_3FFF_FFFF).
+- Ethernet: only CH0 PHY (KSZ9131). RESET_N is driven by P47 through
+  a diode with a 10K/10uF RC pull-up, so board_late_init() pulses P47
+  instead of toggling PMIC Buck5 (S1.2V only supplies the PHY core).
+- P47 is PHY_RESET and RIIC6/RIIC7 are not on P44-P47, so do not mux
+  them and drop i2c6/i2c7 (and CSI22/CSI23 cameras).
+- SD1 not populated: PA2/PA3 are CAN_STB1/2 and P94 is SS1.
+- P86/P87 are CAN3 (no SCI5), PA7/PB3-PB5 are header/CAM1_PWR/LEDs
+  (no SPI2), P95/P96/P66/P67 are PCM/CAM LEDs (no USB2.0 VBUSEN/OVRCUR).
+- Default environment boots from SD0 (mmc0 partition 2): import
+  boot/uEnv.txt if present, then load OpenCV/Codec binaries, Image and
+  boot/rzv2h-rdk-ver101.dtb.
+
+Upstream-Status: Pending
+
+Signed-off-by: Cong Nguyen <cong.nguyen.zn@renesas.com>
+---
+ arch/arm/dts/Makefile               |   1 +
+ arch/arm/dts/rzv2h-rdk-ver101.dts   | 886 ++++++++++++++++++++++++++++
+ arch/arm/mach-renesas/Kconfig.rcar3 |   5 +
+ board/renesas/rzv2h-dev/Kconfig     |  16 +
+ board/renesas/rzv2h-dev/rzv2h-dev.c |  34 +-
+ configs/rzv2h-rdk_defconfig         | 189 ++++++
+ include/configs/rzv2h-dev.h         |  41 ++
+ 7 files changed, 1171 insertions(+), 1 deletion(-)
+ create mode 100644 arch/arm/dts/rzv2h-rdk-ver101.dts
+ create mode 100644 configs/rzv2h-rdk_defconfig
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 6048d18c65..73b2fe8a0b 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -969,6 +969,7 @@ dtb-$(CONFIG_RCAR_GEN3) += \
+ 	rzv2h-dev.dtb \
+ 	rzv2h-evk-alpha.dtb \
+ 	rzv2h-evk-ver1.dtb \
++	rzv2h-rdk-ver101.dtb \
+ 	rzg3e-dev.dtb \
+ 	smarc-rzg3e.dtb
+ 
+diff --git a/arch/arm/dts/rzv2h-rdk-ver101.dts b/arch/arm/dts/rzv2h-rdk-ver101.dts
+new file mode 100644
+index 0000000000..efb46f1d8d
+--- /dev/null
++++ b/arch/arm/dts/rzv2h-rdk-ver101.dts
+@@ -0,0 +1,886 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++/*
++ * Device Tree Source for the RZ/V2H RDK ver101 board
++ *
++ * Copyright (C) 2024 Renesas Electronics Corp.
++ */
++
++/dts-v1/;
++#include "r9a09g057.dtsi"
++#include <dt-bindings/pinctrl/rzg2l-pinctrl.h>
++#include <dt-bindings/gpio/gpio.h>
++
++/*
++ * SSI-DA7212
++ *
++ * These commands are required when Playback/Capture
++ *
++ *	amixer -q cset name='Aux Switch' on
++ *	amixer -q cset name='Mixin Left Aux Left Switch' on
++ *	amixer -q cset name='Mixin Right Aux Right Switch' on
++ *	amixer -q cset name='ADC Switch' on
++ *	amixer -q cset name='Mixout Right Mixin Right Switch' off
++ *	amixer -q cset name='Mixout Left Mixin Left Switch' off
++ *	amixer -q cset name='Headphone Volume' 70%
++ *	amixer -q cset name='Headphone Switch' on
++ *	amixer -q cset name='Mixout Left DAC Left Switch' on
++ *	amixer -q cset name='Mixout Right DAC Right Switch' on
++ *	amixer -q cset name='DAC Left Source MUX' 'DAI Input Left'
++ *	amixer -q cset name='DAC Right Source MUX' 'DAI Input Right'
++ *	amixer -q sset 'Mic 1 Amp Source MUX' 'MIC_P'
++ *	amixer -q sset 'Mic 2 Amp Source MUX' 'MIC_P'
++ *	amixer -q sset 'Mixin Left Mic 1' on
++ *	amixer -q sset 'Mixin Right Mic 2' on
++ *	amixer -q sset 'Mic 1' 90% on
++ *	amixer -q sset 'Mic 2' 90% on
++ *	amixer -q sset 'Lineout' 80% on
++ *	amixer -q set "Headphone" 100% on
++ *
++ * When Capture, use this command to amplify sound
++ *	amixer set 'DVC In',0 100%
++ */
++
++/*
++ * Jumper setting
++ *
++ * Please change the jumper setting corresponding to below Macros:
++ *
++ * SEL_CAN01_HEADER:
++ *	1: CAN0/1	0: External Header Pin
++ * SEL_SCI4_HEADER:
++ *	1: SCI4		0: CAN0/1
++ */
++
++#define SEL_CAN01_HEADER	1
++#define SEL_SCI4_CAN01		0
++
++#if (!SEL_CAN01_HEADER && SEL_SCI4_CAN01)
++#error "Cannot set 1 to SEL_SCI4_CAN01 as SEL_CAN01_HEADER=0"
++#endif
++
++/ {
++	model = "Renesas RDK ver101 based on r9a09g057h4";
++	compatible = "renesas,r9a09g057h4-rdk-ver101", "renesas,r9a09g057h4", "renesas,r9a09g057";
++
++	aliases {
++		serial0 = &scif0;
++		serial1 = &sci0;
++		serial2 = &sci4;
++		mmc0 = &sdhi0;
++		mmc2 = &sdhi2;
++
++		ethernet0 = &eth0;
++	};
++
++	chosen {
++		bootargs = "ignore_loglevel";
++		stdout-path = "serial0:115200n8";
++	};
++
++	memory@48000000 {
++		device_type = "memory";
++		/* first 128MB is reserved for secure area. */
++		reg = <0x0 0x48000000 0x0 0xF8000000>;
++	};
++
++	memory@240000000 {
++		device_type = "memory";
++		reg = <0x2 0x40000000 0x1 0x00000000>;
++	};
++
++	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		global_cma: linux,cma@58000000 {
++			compatible = "shared-dma-pool";
++			linux,cma-default;
++			reusable;
++			reg = <0x0 0x58000000 0x0 0x28000000>;
++		};
++
++		mmp_reserved: linux,multimedia {
++			compatible = "shared-dma-pool";
++			reusable;
++			reg = <0x00000000 0x80000000 0x0 0x10000000>;
++		};
++
++		isp_reserved: frame_buffer@90000000 {
++			compatible = "shared-dma-pool";
++			reusable;
++			reg = <0x0 0x90000000 0x0 0x18000000>;
++		};
++
++		opencva_reserved: OpenCVA@A8000000 {
++			reusable;
++			reg = <0x0 0xA8000000 0x0 0x7D00000>;
++		};
++
++		drp_codec: DRP-Codec@AFD00000 {
++			reusable;
++			reg = <0x0 0xAFD00000 0x0 0x300000>;
++		};
++
++		image_buf0: image_buf@B0000000 {
++			compatible = "shared-dma-pool";
++			reusable;
++			reg = <0x0 0xB0000000 0x0 0x4000000>;
++			label = "image_buf0";
++		};
++
++		cru_func: cru_buffer@B4000000 {
++			compatible = "shared-dma-pool";
++			reusable;
++			reg = <0x0 0xB4000000 0x0 0x16400000>;
++		};
++
++		drp_reserved: DRP-AI@240000000 {
++			reusable;
++			reg = <0x2 0x40000000 0x0 0x20000000>;
++		};
++	};
++
++	mmngr {
++		compatible = "renesas,mmngr";
++		memory-region = <&mmp_reserved>;
++	};
++
++	mmngrbuf {
++		compatible = "renesas,mmngrbuf";
++	};
++
++	vspm_if {
++		compatible = "renesas,vspm_if";
++	};
++
++	reg_1p8v: regulator0 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "fixed-1.8V";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-boot-on;
++		regulator-always-on;
++	};
++
++	reg_3p3v: regulator1 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "fixed-3.3V";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		regulator-boot-on;
++		regulator-always-on;
++	};
++
++	vmmc_sdhi0: regulator-vcc-sdhi0 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "SDHI0 Vmmc";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++
++		gpios = <&pinctrl RZG2L_GPIO(10, 1) GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++	};
++
++	vccq_sdhi0: regulator-vccq-sdhi0 {
++		compatible = "regulator-gpio";
++
++		regulator-name = "SDHI0 VccQ";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <3300000>;
++
++		gpios = <&pinctrl RZG2L_GPIO(10, 0) GPIO_ACTIVE_HIGH>;
++
++		gpios-states = <0>;
++		states = <3300000 0 1800000 1>;
++	};
++
++	hdmi-out {
++		compatible = "hdmi-connector";
++		type = "d";
++
++		port {
++			hdmi_con_out: endpoint {
++				remote-endpoint = <&adv7535_out>;
++			};
++		};
++	};
++
++	clk_ext_camera: clk_ext_camera {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <24000000>;
++	};
++
++	ov5645_vdddo_1v8: 1p8v {
++		compatible = "regulator-fixed";
++		regulator-name = "camera_vdddo";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-always-on;
++	};
++
++	ov5645_vdda_2v8: 2p8v {
++		compatible = "regulator-fixed";
++		regulator-name = "camera_vdda";
++		regulator-min-microvolt = <2800000>;
++		regulator-max-microvolt = <2800000>;
++		regulator-always-on;
++	};
++
++	ov5645_vddd_1v5: 1p5v {
++		compatible = "regulator-fixed";
++		regulator-name = "camera_vddd";
++		regulator-min-microvolt = <1500000>;
++		regulator-max-microvolt = <1500000>;
++		regulator-always-on;
++	};
++
++	x1_clk: x1-clock {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <24000000>;
++	};
++
++#if (!SEL_CAN01_HEADER)
++	codec_test0: codec_test {
++		compatible = "linux,snd-soc-dummy";
++		#sound-dai-cells = <0>;
++	};
++
++	codec_test1: codec_test {
++		compatible = "linux,snd-soc-dummy";
++		#sound-dai-cells = <0>;
++	};
++#endif
++
++	snd_rzv2h: sound {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		compatible = "simple-audio-card";
++		simple-audio-card,name = "rsnd_rzv2h";
++		status="okay";
++
++		ssi_link: simple-audio-card,dai-link@0 {
++			format = "i2s";
++			reg = <0>;
++			bitclock-master = <&cpu_dai0>;
++			frame-master = <&cpu_dai0>;
++			mclk-fs = <256>;
++
++			cpu_dai0: cpu {
++				sound-dai = <&rcar_sound 0>;
++			};
++
++			codec {
++				sound-dai = <&da7212>;
++				clocks = <&rcar_sound>;
++			};
++		};
++
++#if (!SEL_CAN01_HEADER)
++		spdif_link0: simple-audio-card,dai-link@1 {
++			reg = <1>;
++			bitclock-master = <&cpu_dai1>;
++			frame-master = <&cpu_dai1>;
++
++			cpu_dai1: cpu {
++				sound-dai = <&rcar_sound 1>;
++			};
++
++			codec {
++				sound-dai = <&codec_test0>;
++			};
++		};
++
++		spdif_link1: simple-audio-card,dai-link@2 {
++			reg = <1>;
++			bitclock-master = <&cpu_dai2>;
++			frame-master = <&cpu_dai2>;
++
++			cpu_dai2: cpu {
++				sound-dai = <&rcar_sound 2>;
++			};
++
++			codec {
++				sound-dai = <&codec_test1>;
++			};
++		};
++#endif
++	};
++};
++
++&audio_clka {
++	clock-frequency = <22579200>;
++};
++
++&audio_clkb {
++	clock-frequency = <24576000>;
++};
++
++&audio_clkc {
++	clock-frequency = <22579200>;
++};
++
++&pinctrl {
++#if (SEL_CAN01_HEADER && !SEL_SCI4_CAN01)
++	can0_pins: can0 {
++		pinmux = <RZG2L_PORT_PINMUX(8, 0, 5)>, /* TX */
++			 <RZG2L_PORT_PINMUX(8, 1, 5)>; /* RX */
++	};
++
++	can1_pins: can1 {
++		pinmux = <RZG2L_PORT_PINMUX(8, 2, 5)>, /* TX */
++			 <RZG2L_PORT_PINMUX(8, 3, 5)>; /* RX */
++	};
++#endif
++
++	scif0_pins: scif0 {
++		pins =  "SCIF_RXD", "SCIF_TXD";
++	};
++
++	sci0_pins: sci0 {
++		pinmux = <RZG2L_PORT_PINMUX(5, 0, 1)>, /* SCI0_TXD_MOSI_SDA */
++			 <RZG2L_PORT_PINMUX(5, 1, 1)>, /* SCI0_RXD_MISO_SCL */
++			 <RZG2L_PORT_PINMUX(5, 2, 4)>, /* SCI0_CTS */
++			 <RZG2L_PORT_PINMUX(5, 3, 2)>; /* SCI0_RTS */
++	};
++
++#if (SEL_CAN01_HEADER && SEL_SCI4_CAN01)
++	sci4_pins: sci4 {
++		pinmux = <RZG2L_PORT_PINMUX(8, 4, 6)>, /* SCI4_TXD_MOSI_SDA */
++			 <RZG2L_PORT_PINMUX(8, 5, 6)>, /* SCI4_RXD_MISO_SCL */
++			 <RZG2L_PORT_PINMUX(8, 0, 3)>, /* SCI4_CTS */
++			 <RZG2L_PORT_PINMUX(8, 1, 1)>; /* SCI4_RTS */
++	};
++#endif
++
++	/* cam0_pwr_en is used by Google Coral Camera from CSI20 and CSI21 */
++	cam0_pwr_en {
++		gpio-hog;
++		gpios = <RZG2L_GPIO(11, 2) GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "cam0_pwr_en";
++	};
++
++	sdhi0_pins: sd0 {
++		sd0_mux {
++			pinmux = <RZG2L_PORT_PINMUX(10, 5, 15)>; /* SD0_CD */
++		};
++	};
++
++	i2c0_pins: i2c0 {
++		pinmux = <RZG2L_PORT_PINMUX(3, 0, 1)>, /* I2C0_SDA */
++			 <RZG2L_PORT_PINMUX(3, 1, 1)>; /* I2C0_SCL */
++	};
++
++	i2c2_pins: i2c2 {
++		pinmux = <RZG2L_PORT_PINMUX(2, 0, 4)>, /* I2C2_SDA */
++			 <RZG2L_PORT_PINMUX(2, 1, 4)>; /* I2C2_SCL */
++	};
++
++	i2c1_pins: i2c1 {
++		pinmux = <RZG2L_PORT_PINMUX(3, 2, 1)>, /* I2C1_SDA */
++			 <RZG2L_PORT_PINMUX(3, 3, 1)>; /* I2C1_SCL */
++	};
++
++	i2c3_pins: i2c3 {
++		pinmux = <RZG2L_PORT_PINMUX(3, 6, 1)>, /* I2C3_SDA */
++			 <RZG2L_PORT_PINMUX(3, 7, 1)>; /* I2C3_SCL */
++	};
++
++	i2c8_pins: i2c8 {
++		pinmux = <RZG2L_PORT_PINMUX(0, 6, 1)>, /* I2C8_SDA */
++			 <RZG2L_PORT_PINMUX(0, 7, 1)>; /* I2C8_SCL */
++	};
++
++	usb30_pins: usb30 {
++		pinmux = <RZG2L_PORT_PINMUX(11, 0, 14)>; /* VBUS */
++	};
++
++	usb31_pins: usb31 {
++		pinmux = <RZG2L_PORT_PINMUX(6, 2, 14)>; /* VBUS */
++	};
++
++	sound_clk_pins: sound_clk {
++		pinmux = <RZG2L_PORT_PINMUX(1, 0, 7)>, /* AUDIO_CLKB */
++			 <RZG2L_PORT_PINMUX(1, 1, 7)>, /* AUDIO_CLKC */
++			 <RZG2L_PORT_PINMUX(9, 7, 8)>; /* AUDIO_CLKOUT */
++	};
++
++	sound_pins: sound {
++		pinmux = <RZG2L_PORT_PINMUX(1, 2, 7)>, /* SSI3_SCK */
++			 <RZG2L_PORT_PINMUX(1, 3, 7)>, /* SSI3_WS */
++			 <RZG2L_PORT_PINMUX(0, 4, 7)>, /* SSI3_SDATA */
++			 <RZG2L_PORT_PINMUX(1, 5, 7)>; /* SSI4_SDATA */
++
++	};
++
++#if (!SEL_CAN01_HEADER)
++	spdif0_pins: spdif0 {
++		pinmux = <RZG2L_PORT_PINMUX(8, 0, 8)>, /* SPDIF0_OUT */
++			 <RZG2L_PORT_PINMUX(8, 1, 8)>; /* SPDIF0_IN */
++	};
++
++	spdif2_pins: spdif2 {
++		pinmux = <RZG2L_PORT_PINMUX(8, 2, 8)>, /* SPDIF2_OUT */
++			 <RZG2L_PORT_PINMUX(8, 3, 8)>; /* SPDIF2_IN */
++	};
++#endif
++
++};
++
++&extal_clk {
++	clock-frequency = <24000000>;
++};
++
++&ostm2 {
++	status = "okay";
++};
++
++&ostm3 {
++	status = "okay";
++};
++
++&scif0 {
++	pinctrl-0 = <&scif0_pins>;
++	pinctrl-names = "default";
++
++	status = "okay";
++};
++
++&sci0 {
++	pinctrl-0 = <&sci0_pins>;
++	pinctrl-names = "default";
++
++	uart-has-rtscts;
++	status = "okay";
++};
++
++#if (SEL_CAN01_HEADER && SEL_SCI4_CAN01)
++&sci4 {
++	pinctrl-0 = <&sci4_pins>;
++	pinctrl-names = "default";
++
++	uart-has-rtscts;
++	status = "okay";
++};
++#endif
++
++&sdhi0 {
++	pinctrl-0 = <&sdhi0_pins>;
++	pinctrl-names = "default";
++	vmmc-supply = <&vmmc_sdhi0>;
++	vqmmc-supply = <&vccq_sdhi0>;
++	bus-width = <4>;
++	sd-uhs-sdr50;
++	sd-uhs-sdr104;
++	status = "okay";
++};
++
++&eth0 {
++	phy-handle = <&phy0>;
++	phy-mode = "rgmii-id";
++	status = "okay";
++
++	mdio {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		phy0: ethernet-phy@0 {
++			compatible = "ethernet-phy-id0022.1640",
++				     "ethernet-phy-ieee802.3-c22";
++			reg = <0>;
++			rxc-skew-psec = <1400>;
++			txc-skew-psec = <1400>;
++			rxdv-skew-psec = <0>;
++			txdv-skew-psec = <0>;
++			rxd0-skew-psec = <0>;
++			rxd1-skew-psec = <0>;
++			rxd2-skew-psec = <0>;
++			rxd3-skew-psec = <0>;
++			txd0-skew-psec = <0>;
++			txd1-skew-psec = <0>;
++			txd2-skew-psec = <0>;
++			txd3-skew-psec = <0>;
++		};
++	};
++};
++
++&i2c0 {
++	pinctrl-0 = <&i2c0_pins>;
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	ov5645_csi20: ov5645_csi20@3c {
++		compatible = "ovti,ov5645";
++		reg = <0x3c>;
++		clock-names = "xclk";
++		clocks = <&clk_ext_camera>;
++		clock-frequency = <24000000>;
++		vdddo-supply = <&ov5645_vdddo_1v8>;
++		vdda-supply = <&ov5645_vdda_2v8>;
++		vddd-supply = <&ov5645_vddd_1v5>;
++		/* Set dummy enable gpio */
++		enable-gpios = <&pinctrl RZG2L_GPIO(1, 6) GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&pinctrl RZG2L_GPIO(6, 4) GPIO_ACTIVE_LOW>;
++
++		port {
++			ov5645_to_csi20: endpoint {
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				remote-endpoint = <&csi20_in>;
++			};
++		};
++	};
++};
++
++&i2c1 {
++	pinctrl-0 = <&i2c1_pins>;
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	ov5645_csi21: ov5645_csi21@3c {
++		compatible = "ovti,ov5645";
++		reg = <0x3c>;
++		clock-names = "xclk";
++		clocks = <&clk_ext_camera>;
++		clock-frequency = <24000000>;
++		vdddo-supply = <&ov5645_vdddo_1v8>;
++		vdda-supply = <&ov5645_vdda_2v8>;
++		vddd-supply = <&ov5645_vddd_1v5>;
++		/* Set dummy enable gpio */
++		enable-gpios = <&pinctrl RZG2L_GPIO(1, 7) GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&pinctrl RZG2L_GPIO(6, 5) GPIO_ACTIVE_LOW>;
++
++		port {
++			ov5645_to_csi21: endpoint {
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				remote-endpoint = <&csi21_in>;
++			};
++		};
++	};
++};
++
++&i2c2 {
++	pinctrl-0 = <&i2c2_pins>;
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	da7212: codec@1a {
++		compatible = "dlg,da7212";
++		#sound-dai-cells = <0>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0x1a>;
++
++		clocks = <&rcar_sound>;
++		clock-names = "mclk";
++
++		dlg,micbias1-lvl = <2500>;
++		dlg,micbias2-lvl = <2500>;
++		dlg,dmic-data-sel = "lrise_rfall";
++		dlg,dmic-samplephase = "between_clkedge";
++		dlg,dmic-clkrate = <3000000>;
++
++		VDDA-supply = <&reg_1p8v>;
++		VDDSP-supply = <&reg_3p3v>;
++		VDDMIC-supply = <&reg_3p3v>;
++		VDDIO-supply = <&reg_1p8v>;
++	};
++};
++
++&i2c3 {
++	pinctrl-0 = <&i2c3_pins>;
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	adv7535: hdmi@3d {
++		compatible = "adi,adv7535";
++		reg = <0x3d>;
++
++		avdd-supply = <&reg_1p8v>;
++		dvdd-supply = <&reg_1p8v>;
++		pvdd-supply = <&reg_1p8v>;
++		a2vdd-supply = <&reg_1p8v>;
++		v3p3-supply = <&reg_3p3v>;
++		v1p2-supply = <&reg_1p8v>;
++
++		interrupt-parent = <&pinctrl>;
++		interrupts = <RZG2L_GPIO(7, 1) IRQ_TYPE_LEVEL_LOW>;
++
++		adi,dsi-lanes = <4>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				adv7535_in: endpoint@0 {
++					remote-endpoint = <&dsi0_out>;
++				};
++			};
++
++			port@1 {
++				reg = <1>;
++				adv7535_out: endpoint@1 {
++				remote-endpoint = <&hdmi_con_out>;
++				};
++			};
++		};
++	};
++};
++
++&i2c8 {
++	status = "okay";
++};
++
++&du {
++	status = "okay";
++};
++
++&dsi0 {
++	status = "okay";
++
++	ports {
++		port@1 {
++			dsi0_out: endpoint {
++				remote-endpoint = <&adv7535_in>;
++				data-lanes = <1 2 3 4>;
++			};
++		};
++	};
++};
++
++&cru0 {
++	status = "okay";
++};
++
++&csi20 {
++	status = "okay";
++
++	ports {
++		port {
++			csi20_in: endpoint {
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				remote-endpoint = <&ov5645_to_csi20>;
++			};
++		};
++	};
++};
++
++&cru1 {
++	status = "okay";
++};
++
++&csi21 {
++	status = "okay";
++
++	ports {
++		port {
++			csi21_in: endpoint {
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				remote-endpoint = <&ov5645_to_csi21>;
++			};
++		};
++	};
++};
++
++&xhci0 {
++		pinctrl-0 = <&usb30_pins>;
++		pinctrl-names = "default";
++
++		memory-region = <&global_cma>;
++		status = "okay";
++};
++
++&xhci1 {
++		pinctrl-0 = <&usb31_pins>;
++		pinctrl-names = "default";
++
++		memory-region = <&global_cma>;
++		status = "okay";
++};
++
++&usb20phyrst {
++	status = "okay";
++};
++
++&usb21phyrst {
++	status = "okay";
++};
++
++&ohci0 {
++		memory-region = <&global_cma>;
++
++		dr_mode = "otg";
++		status = "okay";
++};
++
++&ohci1 {
++		memory-region = <&global_cma>;
++
++		status = "okay";
++};
++
++&ehci0 {
++		memory-region = <&global_cma>;
++
++		dr_mode = "otg";
++		status = "okay";
++};
++
++&ehci1 {
++		memory-region = <&global_cma>;
++
++		status = "okay";
++};
++
++&hsusb {
++		dr_mode = "otg";
++		status = "okay";
++};
++
++&usb2_phy0 {
++		status = "okay";
++};
++
++&usb2_phy1 {
++		status = "okay";
++};
++
++#if (SEL_CAN01_HEADER && !SEL_SCI4_CAN01)
++&canfd {
++	pinctrl-0 = <&can0_pins &can1_pins>;
++	pinctrl-names = "default";
++	status = "okay";
++
++	channel0 {
++		status = "okay";
++	};
++
++	channel1 {
++		status = "okay";
++	};
++};
++#endif
++
++&rtc {
++	status = "okay";
++};
++
++&wdt1 {
++	status = "okay";
++};
++
++&xspi {
++	status = "okay";
++
++	flash@0 {
++		compatible = "micron,mt25qu512a", "jedec,spi-nor";
++		reg = <0>;
++		m25p,fast-read;
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <1>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@000000 {
++				label = "bl2";
++				reg = <0x00000000 0x0001D200>;
++				read-only;
++			};
++
++			partition@01D200 {
++				label = "fip";
++				reg = <0x0001D200 0x001C2E00>;
++				read-only;
++			};
++
++			partition@1E0000 {
++				label = "env";
++				reg = <0x001E0000 0x00020000>;
++				//read-only;
++			};
++
++			partition@200000 {
++				label = "test-area";
++				reg = <0x00200000 0x00E00000>;
++			};
++		};
++	};
++};
++
++&rcar_sound {
++#if (!SEL_CAN01_HEADER)
++	pinctrl-0 = <&sound_clk_pins &sound_pins &spdif0_pins &spdif2_pins>;
++#else
++	pinctrl-0 = <&sound_clk_pins &sound_pins>;
++#endif
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	/* audio_clkout */
++	#clock-cells = <0>;
++	clock-frequency = <11289600>;
++
++	/* Multi DAI */
++	#sound-dai-cells = <1>;
++
++	rcar_sound,dai {
++		dai0 {
++			playback = <&ssi3>;
++			capture  = <&ssi4 &src0 &dvc0>;
++		};
++
++#if (!SEL_CAN01_HEADER)
++		dai1 {
++			playback = <&spdif0>;
++			capture  = <&spdif0>;
++		};
++
++		dai2 {
++			playback = <&spdif2>;
++			capture  = <&spdif2>;
++		};
++#endif
++	};
++};
++
++&ssi4 {
++	shared-pin;
++};
++
++&pcie0 {
++	/* Map all possible DDR as inbound ranges */
++	dma-ranges = <0x42000000 0 0x40000000 0 0x40000000 0x4 0x00000000>;
++
++	status = "okay";
++};
++
++&adc {
++	status = "okay";
++};
++
++&cmtw0 {
++	status = "okay";
++};
++
++&cmtw1 {
++	status = "okay";
++};
+diff --git a/arch/arm/mach-renesas/Kconfig.rcar3 b/arch/arm/mach-renesas/Kconfig.rcar3
+index 6fd8db896c..a534064492 100644
+--- a/arch/arm/mach-renesas/Kconfig.rcar3
++++ b/arch/arm/mach-renesas/Kconfig.rcar3
+@@ -261,6 +261,11 @@ config TARGET_RZV2H_EVK_VER1
+ 	help
+ 	  Support for Renesas RZ/V2H Version 1 Platform
+ 
++config TARGET_RZV2H_RDK
++	bool "RZ/V2H RDK board"
++	help
++	  Support for Renesas RZ/V2H RDK Platform
++
+ endchoice
+ 
+ source "board/renesas/condor/Kconfig"
+diff --git a/board/renesas/rzv2h-dev/Kconfig b/board/renesas/rzv2h-dev/Kconfig
+index 352acbbae4..0ae8e5236a 100644
+--- a/board/renesas/rzv2h-dev/Kconfig
++++ b/board/renesas/rzv2h-dev/Kconfig
+@@ -61,3 +61,19 @@ config SYS_CONFIG_NAME
+ 	default "rzv2h-dev"
+ 
+ endif
++
++if TARGET_RZV2H_RDK
++
++config SYS_SOC
++	default "renesas"
++
++config SYS_BOARD
++	default "rzv2h-dev"
++
++config SYS_VENDOR
++	default "renesas"
++
++config SYS_CONFIG_NAME
++	default "rzv2h-dev"
++
++endif
+diff --git a/board/renesas/rzv2h-dev/rzv2h-dev.c b/board/renesas/rzv2h-dev/rzv2h-dev.c
+index 45d66e0dd2..96c3beb295 100644
+--- a/board/renesas/rzv2h-dev/rzv2h-dev.c
++++ b/board/renesas/rzv2h-dev/rzv2h-dev.c
+@@ -41,6 +41,8 @@ DECLARE_GLOBAL_DATA_PTR;
+ #define	PFC_20				(PFC_BASE + 0x0480)
+ #define PMC_23				(PFC_BASE + 0x0223)
+ #define PFC_23				(PFC_BASE + 0x048C)
++#define	P_24				(PFC_BASE + 0x0024)
++#define	PM_24				(PFC_BASE + 0x0148)
+ #define	PMC_24				(PFC_BASE + 0x0224)
+ #define	PFC_24				(PFC_BASE + 0x0490)
+ #define	PFC_OSCBYPS			(PFC_BASE + 0x3C00)
+@@ -154,6 +156,17 @@ void s_init(void)
+ 	/* I2C7	*/
+ 	*(volatile u32 *)CPG_CLKON_9 = 0x08000800;
+ 	*(volatile u32 *)CPG_RST_9   = 0x80008000;
++#endif
++#if CONFIG_TARGET_RZV2H_RDK
++	/* I2C3	*/
++	*(volatile u32 *)PFC_23  = (*(volatile u32 *)PFC_23 & 0x00FFFFFF) | (0x01 << 28) | (0x01 << 24);
++	*(volatile u8 *)PMC_23   |= (0x03) << 6;	/* P37,P36 multiplexed function	*/
++
++	*(volatile u32 *)CPG_CLKON_9 = 0x00800080;
++	*(volatile u32 *)CPG_RST_9   = 0x08000800;
++
++	/* PHY_RESET	*/
++	*(volatile u8 *)PMC_24   &= ~(0x01 << 7);	/* P47 port	*/
+ #endif
+ 	/* I2C8 */
+ 	*(volatile u32 *)PFC_20  = (*(volatile u32 *)PFC_20 & 0x00FFFFFF) | (0x01 << 28) | (0x01 << 24);
+@@ -383,6 +396,24 @@ pmic_failed:
+ }
+ 
+ 
++#if CONFIG_TARGET_RZV2H_RDK
++int board_late_init(void)
++{
++	/*
++	 * RESET_N of Ethernet PHY (KSZ9131) is driven by P47 through a diode,
++	 * with 10K/10uF RC pull-up to DVDDH. Drive P47 low to assert reset,
++	 * then drive it high and wait for RESET_N to rise via the RC.
++	 */
++	*(volatile u8 *)P_24    &= ~(0x01 << 7);	/* P47=0	*/
++	*(volatile u16 *)PM_24   = (*(volatile u16 *)PM_24 & ~(0x03 << 14)) | (0x02 << 14); /* P47 output	*/
++	mdelay(20);
++
++	*(volatile u8 *)P_24    |= (0x01 << 7);	/* P47=1	*/
++	mdelay(200);
++
++	return 0;
++}
++#else
+ int board_late_init(void)
+ {
+ 	struct udevice *dev;
+@@ -407,6 +438,7 @@ int board_late_init(void)
+ 
+ 	return ret;
+ }
++#endif /* CONFIG_TARGET_RZV2H_RDK */
+ 
+ int board_early_init_f(void)
+ {
+@@ -422,7 +454,7 @@ int board_init(void)
+ 	board_usb_init();
+ 
+ 	/* Initialize PMIC I2C devices */
+-#if (CONFIG_TARGET_RZV2H_EVK_VER1)
++#if (CONFIG_TARGET_RZV2H_EVK_VER1 || CONFIG_TARGET_RZV2H_RDK)
+ 	board_pmic_i2c_init();
+ #endif
+ 
+diff --git a/configs/rzv2h-rdk_defconfig b/configs/rzv2h-rdk_defconfig
+new file mode 100644
+index 0000000000..f03b5e5189
+--- /dev/null
++++ b/configs/rzv2h-rdk_defconfig
+@@ -0,0 +1,189 @@
++CONFIG_USB_GADGET=y
++CONFIG_USB_RENESAS_USBHS=y
++CONFIG_USB_GADGET_DOWNLOAD=y
++CONFIG_USB_FUNCTION_MASS_STORAGE=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++CONFIG_ARM=y
++CONFIG_ARCH_CPU_INIT=y
++CONFIG_ARCH_RENESAS=y
++CONFIG_OF_UPSTREAM=n
++CONFIG_MTD=y
++CONFIG_TEXT_BASE=0x50000000
++CONFIG_ENV_SIZE=0x20000
++CONFIG_ENV_OFFSET=0x001E0000
++CONFIG_SYS_LOAD_ADDR=0x58000000
++CONFIG_DM_GPIO=y
++CONFIG_RCAR_GEN3=y
++CONFIG_R9A09G057=y
++CONFIG_TARGET_RZV2H_RDK=y
++CONFIG_DEFAULT_DEVICE_TREE="rzv2h-rdk-ver101"
++CONFIG_SMBIOS_PRODUCT_NAME=""
++CONFIG_SPL=n
++CONFIG_FIT=y
++CONFIG_SUPPORT_RAW_INITRD=y
++CONFIG_DEFAULT_FDT_FILE="rzv2h-rdk-ver101.dtb"
++CONFIG_VERSION_VARIABLE=y
++CONFIG_HUSH_PARSER=y
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_DHCP=y
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT2=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_EXT4_WRITE=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_OF_CONTROL=y
++CONFIG_OF_PLATDATA=y
++CONFIG_OF_LIST="rzv2h-rdk-ver101"
++CONFIG_MULTI_DTB_FIT_LZO=y
++CONFIG_MULTI_DTB_FIT_USER_DEFINED_AREA=y
++CONFIG_ENV_OVERWRITE=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_REGMAP=y
++CONFIG_SYSCON=y
++CONFIG_CLK=y
++CONFIG_CLK_RENESAS=y
++CONFIG_CLK_R9A09G057=y
++CONFIG_RCAR_GPIO=y
++#CONFIG_PINCTRL_PFC_RZG2L=y
++CONFIG_PINCTRL_PFC_RZV2H=y
++CONFIG_RZV2H_GPIO=y
++CONFIG_DM_I2C=y
++CONFIG_SYS_I2C_RCAR_IIC=y
++CONFIG_SH_SDHI=y
++CONFIG_BITBANGMII=y
++CONFIG_PHY_MICREL=y
++CONFIG_PHY_MICREL_KSZ90X1=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_DM_ETH=y
++CONFIG_DM_ETH_PHY=y
++CONFIG_DWC_ETH_QOS=y
++CONFIG_DWC_ETH_QOS_RZV2H=y
++CONFIG_RENESAS_RAVB=y
++CONFIG_PCI=y
++CONFIG_DM_PCI=y
++CONFIG_PCI_RCAR_GEN3=y
++CONFIG_DM_REGULATOR=y
++CONFIG_DM_REGULATOR_FIXED=y
++CONFIG_DM_REGULATOR_GPIO=y
++CONFIG_SCIF_CONSOLE=y
++CONFIG_TEE=y
++CONFIG_OPTEE=y
++CONFIG_USB=y
++CONFIG_USB_OTG=y
++CONFIG_DM_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_EHCI_GENERIC=y
++CONFIG_USB_STORAGE=y
++CONFIG_OF_LIBFDT_OVERLAY=y
++CONFIG_SMBIOS_MANUFACTURER=""
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_SYS_I2C_RZG2L_RIIC=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_FLASH_BAR=y
++CONFIG_SPI_FLASH_USE_4K_SECTORS=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_RENESAS_RPC_SPI=y
++CONFIG_CMD_SF=y
++CONFIG_CMD_SPI=y
++CONFIG_SPI_FLASH_STMICRO=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_ENV_SECT_SIZE=0x20000
++#Core UEFI features:
++CONFIG_BOOTM_EFI=y
++CONFIG_CMD_BOOTEFI=y
++CONFIG_CMD_NVEDIT_EFI=y
++CONFIG_CMD_EFIDEBUG=y
++CONFIG_CMD_BOOTEFI_HELLO=y
++CONFIG_CMD_BOOTEFI_HELLO_COMPILE=y
++CONFIG_CMD_BOOTEFI_SELFTEST=y
++CONFIG_CMD_GPT=y
++CONFIG_EFI_PARTITION=y
++CONFIG_EFI_LOADER=y
++CONFIG_EFI_DEVICE_PATH_TO_TEXT=y
++CONFIG_EFI_UNICODE_COLLATION_PROTOCOL2=y
++CONFIG_EFI_UNICODE_CAPITALIZATION=y
++CONFIG_EFI_HAVE_RUNTIME_RESET=y
++CONFIG_CMD_EFI_VARIABLE_FILE_STORE=y
++#Real Time Clock (RTC) support:
++CONFIG_DM_RTC=y
++CONFIG_EFI_GET_TIME=y
++CONFIG_EFI_SET_TIME=y
++CONFIG_RTC_EMULATION=y
++#update firmware:
++CONFIG_CMD_DFU=y
++CONFIG_FLASH_CFI_MTD=y
++CONFIG_EFI_CAPSULE_FIRMWARE_FIT=y
++CONFIG_EFI_CAPSULE_FIRMWARE_MANAGEMENT=y
++CONFIG_EFI_CAPSULE_FIRMWARE=y
++CONFIG_EFI_CAPSULE_FIRMWARE_RAW=y
++CONFIG_EFI_CAPSULE_FMP_HEADER=y
++# to enable partitions and filesystems support:
++CONFIG_FAT_WRITE=y
++CONFIG_FS_FAT=y
++CONFIG_CMD_PART=y
++CONFIG_PARTITIONS=y
++CONFIG_DOS_PARTITION=y
++CONFIG_ISO_PARTITION=y
++CONFIG_PARTITION_UUIDS=y
++#Device Firmware update:
++CONFIG_OF_LIBFDT=y
++#CONFIG_DISTRO_DEFAULTS=y
++CONFIG_CMD_RTC=y
++CONFIG_EFI_RUNTIME_UPDATE_CAPSULE=y
++CONFIG_EFI_HAVE_CAPSULE_SUPPORT=y
++CONFIG_EFI_CAPSULE_ON_DISK=y
++CONFIG_SPL_DFU=y
++CONFIG_DM_MTD=y
++CONFIG_DFU_MTD=y
++CONFIG_SPL_DFU_MTD=y
++CONFIG_DFU_SF=y
++CONFIG_DFU_OVER_USB=y
++CONFIG_DFU=y
++CONFIG_DFU_MMC=y
++CONFIG_DFU_NAND=y
++CONFIG_DFU_RAM=y
++CONFIG_DFU_SF_PART=y
++CONFIG_DFU_TIMEOUT=y
++CONFIG_DFU_OVER_TFTP=y
++CONFIG_DFU_TFTP=y
++#generate capsule files
++#CONFIG_EFI_CAPSULE_AUTHENTICATE=y
++CONFIG_EFI_SECURE_BOOT=y
++CONFIG_EFI_SIGNATURE_SUPPORT=y
++CONFIG_RSA=y
++CONFIG_RSA_VERIFY=y
++CONFIG_RSA_VERIFY_WITH_PKEY=y
++CONFIG_IMAGE_SIGN_INFO=y
++CONFIG_RSA_SOFTWARE_EXP=y
++CONFIG_ASYMMETRIC_KEY_TYPE=y
++CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE=y
++CONFIG_RSA_PUBLIC_KEY_PARSER=y
++CONFIG_X509_CERTIFICATE_PARSER=y
++CONFIG_PKCS7_MESSAGE_PARSER=y
++CONFIG_PKCS7_VERIFY=y
++CONFIG_HASH=y
++CONFIG_SHA1=y
++CONFIG_SHA256=y
++CONFIG_SHA512=y
++CONFIG_SHA384=y
++CONFIG_MD5=y
++CONFIG_CRC32=y
++#EFI System Resource Table (ESRT)
++CONFIG_EFI_ESRT=y
++#Secure boot
++CONFIG_FIT_SIGNATURE=y
++
++CONFIG_PROT_TCP=y
++CONFIG_PROT_TCP_SACK=y
++CONFIG_CMD_WGET=y
++CONFIG_BOARD_LATE_INIT=y
+diff --git a/include/configs/rzv2h-dev.h b/include/configs/rzv2h-dev.h
+index 8fa13f983a..37f28ffaaa 100644
+--- a/include/configs/rzv2h-dev.h
++++ b/include/configs/rzv2h-dev.h
+@@ -97,6 +97,47 @@
+ 
+ #define CONFIG_BOOTCOMMAND	"env default -a;run bootcmd_check;run bootimage"
+ 
++#if defined(CONFIG_TARGET_RZV2H_RDK)
++/* Support uEnv.txt to pass environment variables (and device tree overlays) to the kernel */
++#undef CFG_EXTRA_ENV_SETTINGS
++#define CFG_EXTRA_ENV_SETTINGS	\
++	"usb_pgood_delay=2000\0"	\
++	"bootm_size=0x10000000\0"	\
++	"fdtfile=boot/uEnv.txt\0"	\
++	"dtbfile=rzv2h-rdk-ver101.dtb\0"	\
++	"mmcdev=0\0"	\
++	"mmcpart=2\0"	\
++	"dtb_addr=0x48000000\0"	\
++	"dtbo_addr=0x48020000\0"	\
++	"image_addr=0x48080000\0"	\
++	"env_addr=0x58000000\0"	\
++	"ocaaddr=0xA8000000\0"	\
++	"ocabin=OpenCV_Bin.bin\0"	\
++	"codaddr=0xAFD00000\0"	\
++	"codbin=Codec_Bin.bin\0"	\
++	"importbootenv=echo Importing environment from mmc${mmcdev} ...; " \
++		"env import -t ${env_addr} ${filesize}\0" \
++	"loadbootenv=ext4load mmc ${mmcdev}:${mmcpart} ${env_addr} ${fdtfile}\0" \
++	"envboot=mmc dev ${mmcdev}; " \
++		"if mmc rescan; then " \
++			"echo SD/MMC found on device ${mmcdev};" \
++			"if run loadbootenv; then " \
++				"echo Loaded env from ${fdtfile};" \
++				"run importbootenv;" \
++			"fi;" \
++		"fi;\0" \
++	"prodsdbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk${mmcdev}p${mmcpart}\0" \
++	"prodsdload=ext4load mmc ${mmcdev}:${mmcpart} ${ocaaddr} boot/${ocabin}; " \
++		"ext4load mmc ${mmcdev}:${mmcpart} ${codaddr} boot/${codbin}; " \
++		"ext4load mmc ${mmcdev}:${mmcpart} ${image_addr} boot/Image; " \
++		"ext4load mmc ${mmcdev}:${mmcpart} ${dtb_addr} boot/${dtbfile}\0" \
++	"prodsdboot=run prodsdload; run prodsdbootargs; run bootimage\0" \
++	"bootimage=booti ${image_addr} - ${dtb_addr}\0"
++
++#undef CONFIG_BOOTCOMMAND
++#define CONFIG_BOOTCOMMAND	"run envboot;run prodsdboot"
++#endif /* CONFIG_TARGET_RZV2H_RDK */
++
+ /* For board */
+ /* Ethernet RAVB */
+ #define CONFIG_BITBANGMII_MULTI
+-- 
+2.34.1
+

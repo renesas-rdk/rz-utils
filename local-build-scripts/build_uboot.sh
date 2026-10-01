@@ -14,8 +14,9 @@ Build U-Boot (${UBOOT_DIR}). Called directly or via
   <sub_command>:
     clean       make clean
     distclean   make distclean
-    defconfig   Write config.ini's DEFCONFIG (make <defconfig>)
-    image       make (build using the existing .config, no defconfig step)
+    reset-src   Reset UBOOT_DIR to UBOOT_SRCREV and reapply UBOOT_PATCHES, without re-cloning
+    defconfig   reset-src, then write config.ini's DEFCONFIG (make <defconfig>)
+    image       make (build using the existing .config, no defconfig/reset step)
     all         defconfig, then make (default if no sub_command given)
 
 Platform override: PLAT=RZV2H-RDK ./build_uboot.sh all
@@ -36,7 +37,44 @@ if [ -z "${UBOOT_DIR}" ]; then
 	echo "Please recheck your setup"
 	exit 1
 fi
-ensure_src_dir "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_BRANCH:-}" "U-Boot"
+
+if [ -n "${UBOOT_PATCH_DIR:-}" ]; then
+	UBOOT_PATCH_DIR="$(cd "${UBOOT_PATCH_DIR}" && pwd)"
+fi
+
+# Pin to UBOOT_SRCREV (needed so UBOOT_PATCHES always apply onto the same known base).
+if [ -n "${UBOOT_SRCREV:-}" ]; then
+	ensure_src_dir_at_rev "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_SRCREV}" "U-Boot"
+else
+	ensure_src_dir "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_BRANCH:-}" "U-Boot"
+fi
+
+# Reset to the pristine pinned commit
+reset_uboot_tree() {
+	clean_repo "${UBOOT_DIR}" "U-Boot"
+}
+
+# config.ini's UBOOT_PATCH_DIR / UBOOT_PATCHES -- board patches not yet upstream.
+apply_uboot_patches() {
+	if [ -z "${UBOOT_PATCH_DIR:-}" ]; then
+		echo "UBOOT_PATCH_DIR is not set in config.ini -- skipping board patches." >&2
+		return 0
+	fi
+	local p
+	for p in "${UBOOT_PATCHES[@]}"; do
+		if [ ! -f "${UBOOT_PATCH_DIR}/${p}" ]; then
+			echo "Error: patch not found: ${UBOOT_PATCH_DIR}/${p}" >&2
+			exit 1
+		fi
+		echo "Applying ${p}..."
+		git -C "${UBOOT_DIR}" apply "${UBOOT_PATCH_DIR}/${p}"
+	done
+}
+
+mk_reset_src() {
+	reset_uboot_tree
+	apply_uboot_patches
+}
 
 # Setup the build
 uboot_setup() {
@@ -44,12 +82,12 @@ uboot_setup() {
 	unset LDFLAGS CFLAGS CPPFLAGS
 
 	case ${PLATFORM} in
-		'RZ-CMN')
-			UBOOT_DEFCONFIG="rz-cmn_defconfig"
+		'RZV2H-RDK')
+			UBOOT_DEFCONFIG="rzv2h-rdk_defconfig"
 			;;
 		*)
-			echo "Warning: Platform '${PLATFORM}' not recognised or do not have specific defconfig for this platform. Falling back to 'rz-cmn_defconfig'." >&2
-			UBOOT_DEFCONFIG="rz-cmn_defconfig"
+			echo "Warning: Platform '${PLATFORM}' not recognised or do not have specific defconfig for this platform. Falling back to 'rzv2h-rdk_defconfig'." >&2
+			UBOOT_DEFCONFIG="rzv2h-rdk_defconfig"
 			;;
 	esac
 }
@@ -60,6 +98,7 @@ mk_image() {
 }
 
 mk_full_image() {
+	mk_reset_src
 	uboot_setup
 	make "${UBOOT_DEFCONFIG}"
 	make -j"$(nproc)"
@@ -74,6 +113,7 @@ mk_distclean() {
 }
 
 mk_defconfig() {
+	mk_reset_src
 	uboot_setup
 	make "${UBOOT_DEFCONFIG}"
 }
@@ -88,6 +128,9 @@ case ${1} in
 		;;
 	'distclean')
 		mk_distclean
+		;;
+	'reset-src')
+		mk_reset_src
 		;;
 	'defconfig')
 		mk_defconfig
