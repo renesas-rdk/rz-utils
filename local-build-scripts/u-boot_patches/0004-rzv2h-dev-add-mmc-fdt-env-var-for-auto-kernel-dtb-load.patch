@@ -1,0 +1,14 @@
+diff --git a/include/configs/rzv2h-dev.h b/include/configs/rzv2h-dev.h
+index 37f28ffaaa7..16001d70ec0 100644
+--- a/include/configs/rzv2h-dev.h
++++ b/include/configs/rzv2h-dev.h
+@@ -104,7 +104,8 @@
+ 	"usb_pgood_delay=2000\0"	\
+ 	"bootm_size=0x10000000\0"	\
+ 	"fdtfile=boot/uEnv.txt\0"	\
+-	"dtbfile=rzv2h-rdk-ver101.dtb\0"	\
++	"dtbfile=" CONFIG_DEFAULT_FDT_FILE "\0"	\
++	"mmc_fdt=ext4load mmc 0:2 0x48000000 boot/dtb/renesas/" CONFIG_DEFAULT_FDT_FILE "\0" \
+ 	"mmcdev=0\0"	\
+ 	"mmcpart=2\0"	\
+ 	"dtb_addr=0x48000000\0"	\
