@@ -49,7 +49,7 @@ else
 	ensure_src_dir "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_BRANCH:-}" "U-Boot"
 fi
 
-# Reset to the pristine pinned commit
+# Reset to the pinned commit
 reset_uboot_tree() {
 	clean_repo "${UBOOT_DIR}" "U-Boot"
 }
@@ -83,18 +83,39 @@ uboot_setup() {
 
 	case ${PLATFORM} in
 		'RZV2H-RDK')
-			UBOOT_DEFCONFIG="rzv2h-rdk_defconfig"
+			# U-Boot has no shared defconfig
+			UBOOT_DEFCONFIG="rzv2h-rdk-ver101_defconfig"
 			;;
 		*)
-			echo "Warning: Platform '${PLATFORM}' not recognised or do not have specific defconfig for this platform. Falling back to 'rzv2h-rdk_defconfig'." >&2
-			UBOOT_DEFCONFIG="rzv2h-rdk_defconfig"
+			echo "Warning: Platform '${PLATFORM}' not recognised or do not have specific defconfig for this platform. Falling back to 'rzv2h-rdk-ver101_defconfig'." >&2
+			UBOOT_DEFCONFIG="rzv2h-rdk-ver101_defconfig"
 			;;
 	esac
+}
+
+# Copy the just-built binaries into RELEASE_OUTPUT_DIR/<board-variant>/
+publish_release() {
+	local tag outdir
+	tag="$(sed -n 's/^CONFIG_DEFAULT_DEVICE_TREE="\(.*\)"$/\1/p' .config)"
+	if [ -z "${tag}" ]; then
+		echo "Warning: could not read CONFIG_DEFAULT_DEVICE_TREE from .config -- skipping RELEASE_OUTPUT_DIR copy." >&2
+		return 0
+	fi
+	if [ -z "${RELEASE_OUTPUT_DIR:-}" ]; then
+		echo "RELEASE_OUTPUT_DIR is not set in config.ini -- skipping release copy." >&2
+		return 0
+	fi
+	outdir="${RELEASE_OUTPUT_DIR}/${tag}"
+	mkdir -p "${outdir}"
+	cp u-boot.bin "${outdir}/u-boot.bin"
+	cp u-boot.srec "${outdir}/u-boot.srec"
+	echo "Published u-boot.bin/.srec to ${outdir}/"
 }
 
 mk_image() {
 	uboot_setup
 	make -j"$(nproc)"
+	publish_release
 }
 
 mk_full_image() {
@@ -102,6 +123,7 @@ mk_full_image() {
 	uboot_setup
 	make "${UBOOT_DEFCONFIG}"
 	make -j"$(nproc)"
+	publish_release
 }
 
 mk_clean() {
