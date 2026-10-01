@@ -8,28 +8,24 @@ show_help() {
 	cat <<USAGE
 Usage: ./build_uboot.sh [sub_command]
 
-Build U-Boot (${UBOOT_DIR}). Called directly or via
+Build U-Boot (${UBOOT_DIR}) for the RZ/V2H RDK board. Called directly or via
 './main_build.sh uboot <sub_command>'.
 
   <sub_command>:
     clean       make clean
     distclean   make distclean
     reset-src   Reset UBOOT_DIR to UBOOT_SRCREV and reapply UBOOT_PATCHES, without re-cloning
-    defconfig   reset-src, then write config.ini's DEFCONFIG (make <defconfig>)
+    defconfig   reset-src, then write the UBOOT_VARIANT defconfig (make <defconfig>)
     image       make (build using the existing .config, no defconfig/reset step)
-    all         defconfig, then make (default if no sub_command given)
+    ver1        Build the 16GB-RAM board variant only
+    ver101      Build the 8GB-RAM board variant only
+    all         Build both ver1 and ver101 (default if no sub_command given)
 
-Platform override: PLAT=RZV2H-RDK ./build_uboot.sh all
-  (defaults to config.ini's PLATFORM, which selects the DEFCONFIG -- see the
-  UBOOT_DEFCONFIG case in this script)
+UBOOT_VARIANT=<ver1|ver101> (env var, default ver101) selects the defconfig
+'defconfig'/'image' use -- 'ver1'/'ver101'/'all' always pick theirs explicitly.
 USAGE
 	exit 1
 }
-
-# if PLATFORM is already exported from main_build.sh, keep it
-if [ -n "${PLATFORM:-}" ] && [ -n "${PLAT:-}" ]; then
-	PLATFORM="$PLAT"
-fi
 
 # Check U-Boot location
 if [ -z "${UBOOT_DIR}" ]; then
@@ -49,7 +45,8 @@ else
 	ensure_src_dir "${UBOOT_DIR}" "${UBOOT_REPO:-}" "${UBOOT_BRANCH:-}" "U-Boot"
 fi
 
-# Reset to the pinned commit
+# Reset to the pristine pinned commit (undoes any previously applied UBOOT_PATCHES too,
+# including untracked files a patch added -- clean_repo() also runs `git clean -fdx`).
 reset_uboot_tree() {
 	clean_repo "${UBOOT_DIR}" "U-Boot"
 }
@@ -76,24 +73,23 @@ mk_reset_src() {
 	apply_uboot_patches
 }
 
+# U-Boot has no shared defconfig like the kernel's renesas_defconfig -- it's
+# per-board. rzv2h-rdk-ver101_defconfig / rzv2h-rdk-ver1_defconfig were added
+# by the UBOOT_PATCHES board-support patches.
+defconfig_for_variant() {
+	echo "rzv2h-rdk-${1}_defconfig"
+}
+
 # Setup the build
 uboot_setup() {
 	unset LD_LIBRARY_PATH
 	unset LDFLAGS CFLAGS CPPFLAGS
-
-	case ${PLATFORM} in
-		'RZV2H-RDK')
-			# U-Boot has no shared defconfig
-			UBOOT_DEFCONFIG="rzv2h-rdk-ver101_defconfig"
-			;;
-		*)
-			echo "Warning: Platform '${PLATFORM}' not recognised or do not have specific defconfig for this platform. Falling back to 'rzv2h-rdk-ver101_defconfig'." >&2
-			UBOOT_DEFCONFIG="rzv2h-rdk-ver101_defconfig"
-			;;
-	esac
 }
 
-# Copy the just-built binaries into RELEASE_OUTPUT_DIR/<board-variant>/
+# Copy the just-built binaries into RELEASE_OUTPUT_DIR/<board-variant>/, read
+# from the actual .config (CONFIG_DEFAULT_DEVICE_TREE) rather than the
+# variant just requested, so `image` (no defconfig step) still tags correctly
+# if .config came from a different variant than the current invocation.
 publish_release() {
 	local tag outdir
 	tag="$(sed -n 's/^CONFIG_DEFAULT_DEVICE_TREE="\(.*\)"$/\1/p' .config)"
@@ -118,14 +114,6 @@ mk_image() {
 	publish_release
 }
 
-mk_full_image() {
-	mk_reset_src
-	uboot_setup
-	make "${UBOOT_DEFCONFIG}"
-	make -j"$(nproc)"
-	publish_release
-}
-
 mk_clean() {
 	make clean
 }
@@ -135,9 +123,21 @@ mk_distclean() {
 }
 
 mk_defconfig() {
+	local variant="${UBOOT_VARIANT:-ver101}"
 	mk_reset_src
 	uboot_setup
-	make "${UBOOT_DEFCONFIG}"
+	make "$(defconfig_for_variant "${variant}")"
+}
+
+# Full build for one board variant: reset+patch, defconfig, build, publish.
+build_variant() {
+	local variant="$1"
+	echo "===== Building U-Boot for the ${variant} RAM variant ====="
+	mk_reset_src
+	uboot_setup
+	make "$(defconfig_for_variant "${variant}")"
+	make -j"$(nproc)"
+	publish_release
 }
 
 # Main U-Boot build
@@ -160,8 +160,15 @@ case ${1} in
 	'image')
 		mk_image
 		;;
+	'ver1')
+		build_variant "ver1"
+		;;
+	'ver101')
+		build_variant "ver101"
+		;;
 	'all')
-		mk_full_image
+		build_variant "ver1"
+		build_variant "ver101"
 		;;
 	*)
 		show_help

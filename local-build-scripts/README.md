@@ -89,19 +89,14 @@ $ ./build_kernel.sh all               # defconfig + Image + dtbs + modules + mod
 	Builds rzv2h-rdk-ver1.dtb and rzv2h-rdk-ver101.dtb together (one kernel
 	Image serves both boards; only U-Boot needs a separate build per variant).
 
-# U-Boot
+# U-Boot -- each variant builds+publishes to RELEASE_OUTPUT_DIR on its own,
+# same pattern as ATF below:
 $ ./build_uboot.sh clean
 $ ./build_uboot.sh reset-src          # reset UBOOT_DIR + reapply UBOOT_PATCHES only, no build
-$ ./build_uboot.sh all                # defconfig (ver101) + full image build, publishes to RELEASE_OUTPUT_DIR
+$ ./build_uboot.sh ver1               # 16GB-RAM board variant
+$ ./build_uboot.sh ver101             # 8GB-RAM board variant
+$ ./build_uboot.sh all                # both
 $ ./build_uboot.sh image              # rebuild with the existing .config, no defconfig/reset step
-
-# ver1 (16GB) U-Boot -- manual until wired into build_uboot.sh's PLATFORM case:
-$ cd /workspace/workspace/u-boot
-$ export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-$ make rzv2h-rdk-ver1_defconfig && make -j$(nproc)
-$ cd - && ./build_uboot.sh image      # publishes it to RELEASE_OUTPUT_DIR/rzv2h-rdk-ver1/
-	(publish_release() reads CONFIG_DEFAULT_DEVICE_TREE from .config, so this
-	tags it correctly regardless of PLATFORM.)
 
 # ATF -- each variant can pin its own TF-A commit and patch set (config.ini's
 # ATF_SRCREV_<VARIANT> / ATF_PATCHES_<VARIANT>):
