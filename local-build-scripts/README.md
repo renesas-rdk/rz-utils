@@ -51,8 +51,7 @@ This configuration file contains the configurations for the build. Please make s
 
 
 ## Usage
-
-```
+```bash
 # Build all componets:
 $ ./main_build.sh all
 	Build for all (Linux Kernel, U-Boot, ATF, Firmware-Pack, Flash-Writer, kernel modules)
@@ -90,4 +89,16 @@ $ ./build_<name>.sh clean   # make clean in the module's build dir
 
 $ ./kernel-modules/kernel_modules_all.sh all    # runs all 7 build_<name>.sh all in dependency order
 $ ./kernel-modules/kernel_modules_all.sh clean  # same, for clean
+```
+
+## Realtime preempt:
+```bash
+# Build kernel-rt:
+$ KERNEL_VARIANT=preempt-rt \
+$ KERNEL_MODULES_OUTPUT_DIR=/workspace/workspace/kernel-modules-rt \
+$ ./build_kernel.sh all
+
+# Build kernel modules-rt
+$ cd kernel-modules
+$ KERNEL_MODULES_OUTPUT_DIR=/workspace/workspace/kernel-modules-rt ./kernel_modules_all.sh all
 ```

@@ -75,9 +75,6 @@ fi
 
 echo "Using DEFCONFIG=${DEFCONFIG}"
 
-# Add config from yocto
-COMMON_FRAGMENT="${SCRIPT_DIR}/kernel-config/yocto-common.config"
-
 # Optional, on top of the above: KERNEL_VARIANT=<name> merges kernel-config/<name>.config.
 VARIANT_FRAGMENT=""
 if [ -n "${KERNEL_VARIANT:-}" ]; then
@@ -112,7 +109,6 @@ mk_config_merged() {
 	merged="$(mktemp -t rzv2h-merged-config.XXXXXX)"
 	cat "${defconfig_file}" > "${merged}"
 	# Fragments go last, in order, so each can override what came before it.
-	[ -f "${COMMON_FRAGMENT}" ] && cat "${COMMON_FRAGMENT}" >> "${merged}"
 	[ -n "${VARIANT_FRAGMENT}" ] && cat "${VARIANT_FRAGMENT}" >> "${merged}"
 
 	echo '|============================================|'
