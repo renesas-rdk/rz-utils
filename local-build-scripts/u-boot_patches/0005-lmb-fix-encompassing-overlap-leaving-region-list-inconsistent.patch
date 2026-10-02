@@ -1,0 +1,20 @@
+lmb: fix encompassing-overlap case leaving the reserved-region list inconsistent
+
+diff --git a/lib/lmb.c b/lib/lmb.c
+index 44f98205310..6650d7b81e4 100644
+--- a/lib/lmb.c
++++ b/lib/lmb.c
+@@ -122,8 +122,11 @@ static void lmb_fix_over_lap_regions(struct lmb_region *rgn, unsigned long r1,
+ 	phys_addr_t base2 = rgn->region[r2].base;
+ 	phys_size_t size2 = rgn->region[r2].size;
+ 
+-	if (base1 + size1 > base2 + size2) {
+-		printf("This will not be a case any time\n");
++	if (base1 + size1 >= base2 + size2) {
++		/* region1 already fully encompasses region2 -- nothing to
++		 * grow, just drop the now-redundant region2.
++		 */
++		lmb_remove_region(rgn, r2);
+ 		return;
+ 	}
+ 	rgn->region[r1].size = base2 + size2 - base1;
