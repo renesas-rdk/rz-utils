@@ -6,8 +6,8 @@ export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 
 # Paths of config.ini or the environment may be relative to the directory the scripts are
 # run from: make them absolute (and exported) before any script changes directory.
-for _v in WORKDIR KERNEL_DIR EXT_MODULES_SRC_DIR KERNEL_MODULES_OUTPUT_DIR \
-	  IPL_WORK_DIR IPL_OUT_DIR IPL_FEATURES_FILE; do
+for _v in WORKDIR KERNEL_DIR KBUILD_OUTPUT EXT_MODULES_SRC_DIR KERNEL_MODULES_OUTPUT_DIR \
+	  IPL_WORK_DIR IPL_OUT_DIR IPL_FEATURES_FILE DEPLOY_DIR; do
 	[ -n "${!_v:-}" ] && export "${_v}=$(realpath -m "${!_v}")"
 done
 unset _v
@@ -180,11 +180,19 @@ Option:
                 - force: discard local changes in IPL_WORK_DIR, patch and build again
                 - clean: remove IPL_OUT_DIR (sources are kept)
 
-        4. all
-            kernel all, kernel-modules install, ipl all
+        4. deploy
+            Copy what is built (Image, DTBs + overlays, modules, IPL of IPL_BOARDS) and
+            ipl_build/uEnv.txt into the board rootfs layout (boot/, usr/lib/modules/) in
+            DEPLOY_DIR/rzv2h-rdk, or DEPLOY_DIR/rzv2h-rdk-rt with KERNEL_VARIANT=preempt-rt.
+            The kernel and modules are taken only if built for that flavour; anything not
+            built is skipped (deploy.sh).
             <sub_command>: None
 
-        5. clean-all
+        5. all
+            kernel all, kernel-modules install, ipl all, deploy
+            <sub_command>: None
+
+        6. clean-all
             kernel distclean, kernel-modules clean, ipl clean
             <sub_command>: None
 
@@ -195,6 +203,9 @@ For example:
     Build and install all out-of-tree modules, or only one:
         $ ./main_build.sh kernel-modules install
         $ ./main_build.sh kernel-modules all vspm
+
+    Collect the RT kernel, its modules and the IPL for the board:
+        $ KERNEL_VARIANT=preempt-rt ./main_build.sh deploy
 
     Build the IPL for RDK ver1 and ver101 in CM33 cold boot mode:
         $ IPL_BOARDS=\"ver1 ver101\" IPL_FEATURES=RZ_CM33_COLDBOOT ./main_build.sh ipl

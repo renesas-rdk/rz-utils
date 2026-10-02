@@ -4,7 +4,7 @@ vendor/*
 
 # Sources and build output of local-build-scripts when WORKDIR (config.ini) points
 # inside this repo: WORKDIR itself if named workspace/, and its default subdirectories
-# (KERNEL_DIR, EXT_MODULES_SRC_DIR, IPL_WORK_DIR, IPL_OUT_DIR).
+# (KERNEL_DIR, EXT_MODULES_SRC_DIR, IPL_WORK_DIR, IPL_OUT_DIR, DEPLOY_DIR).
 # KERNEL_MODULES_OUTPUT_DIR ($WORKDIR/kernel-modules) is not listed: that name is also
 # local-build-scripts/kernel-modules/, so do not set WORKDIR to local-build-scripts.
 workspace/
@@ -12,3 +12,4 @@ linux-rz/
 ext-modules/
 ipl-work/
 ipl-out/
+deploy/
