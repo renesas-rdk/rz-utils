@@ -182,6 +182,27 @@ mk_menuconfig() {
 	make menuconfig
 }
 
+# Copy Image + each board's dtb into RELEASE_OUTPUT_DIR/rzv2h-rdk-<variant>/
+publish_release() {
+	if [ -z "${RELEASE_OUTPUT_DIR:-}" ]; then
+		echo "RELEASE_OUTPUT_DIR is not set in config.ini -- skipping release copy." >&2
+		return 0
+	fi
+	local variant dtb outdir
+	for variant in ver1 ver101; do
+		dtb="arch/arm64/boot/dts/renesas/rzv2h-rdk-${variant}.dtb"
+		if [ ! -f "${dtb}" ]; then
+			echo "Warning: ${dtb} not found -- skipping ${variant} release copy." >&2
+			continue
+		fi
+		outdir="${RELEASE_OUTPUT_DIR}/rzv2h-rdk-${variant}"
+		mkdir -p "${outdir}"
+		cp arch/arm64/boot/Image "${outdir}/Image"
+		cp "${dtb}" "${outdir}/rzv2h-rdk-${variant}.dtb"
+		echo "Published Image + rzv2h-rdk-${variant}.dtb to ${outdir}/"
+	done
+}
+
 mk_modules() {
 	kernel_setup
 	configure_kernel
@@ -190,7 +211,20 @@ mk_modules() {
 	echo '|               Build modules                |'
 	echo '|============================================|'
 	make -j"$(nproc)" modules
+	publish_release
 	echo "Build completed successfully"
+}
+
+# Copy KERNEL_MODULES_OUTPUT into RELEASE_OUTPUT_DIR
+publish_modules_release() {
+	if [ -z "${RELEASE_OUTPUT_DIR:-}" ]; then
+		echo "RELEASE_OUTPUT_DIR is not set in config.ini -- skipping release copy." >&2
+		return 0
+	fi
+	local outdir="${RELEASE_OUTPUT_DIR}/modules"
+	mkdir -p "${outdir}"
+	cp -r "${KERNEL_MODULES_OUTPUT_DIR}/lib" "${outdir}/"
+	echo "Published kernel modules to ${outdir}/lib/modules/"
 }
 
 mk_modules_install() {
@@ -208,6 +242,7 @@ mk_modules_install() {
 	make INSTALL_MOD_PATH="${KERNEL_MODULES_OUTPUT_DIR}" modules_install
 	rm -f "${KERNEL_MODULES_OUTPUT_DIR}"/lib/modules/*/build
 	echo "Installed kernel modules to ${KERNEL_MODULES_OUTPUT_DIR}"
+	publish_modules_release
 }
 
 # Main Linux Kernel build
