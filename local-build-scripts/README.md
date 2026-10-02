@@ -7,8 +7,9 @@ Linux kernel, the out-of-tree kernel modules and the IPL (BL2 + FIP with BL31/U-
 
 ```
 .
-├── main_build.sh        # entry point: kernel, kernel-modules, ipl, all, clean-all
+├── main_build.sh        # entry point: kernel, kernel-modules, ipl, deploy, all, clean-all
 ├── build_kernel.sh      # Linux kernel (KERNEL_DIR)
+├── deploy.sh            # built output -> board rootfs layout (DEPLOY_DIR)
 ├── common.sh            # shared helpers and the main_build.sh usage text
 ├── config.ini           # build settings, read by every script
 ├── kernel-config/       # optional kernel config fragments (KERNEL_VARIANT=<name>)
@@ -68,7 +69,8 @@ $ ./main_build.sh <target_build> [<sub_command>] [<module>]
         force: discard local changes in IPL_WORK_DIR, patch and build again
         clean: remove IPL_OUT_DIR (sources are kept)
 
-    all         kernel all, kernel-modules install, ipl all
+    deploy      copy what is built into the board rootfs layout, DEPLOY_DIR/rzv2h-rdk[-rt]
+    all         kernel all, kernel-modules install, ipl all, deploy
     clean-all   kernel distclean, kernel-modules clean, ipl clean
 ```
 
@@ -81,6 +83,7 @@ Examples:
 ./main_build.sh ipl                           # IPL for IPL_BOARDS (default ver101)
 IPL_BOARDS="ver1 ver101" IPL_FEATURES=RZ_CM33_COLDBOOT ./main_build.sh ipl
 KERNEL_VARIANT=preempt-rt ./main_build.sh kernel all
+./main_build.sh deploy                        # boot/ + usr/lib/modules/ for the board
 ```
 
 `./main_build.sh` without arguments prints the full help. Each script also runs on its own:
@@ -94,6 +97,34 @@ fragment changed since the last `defconfig`. Otherwise they build the current `.
 
 The IPL default mode is remoteproc: set `enable_overlay_remoteproc=1` in `boot/uEnv.txt`
 (see `ipl_build/uEnv.txt`), and leave it unset in the other Multi-OS modes.
+
+### deploy
+
+`./main_build.sh deploy` copies what is built into the layout of the board's root filesystem,
+without a .deb:
+
+```
+DEPLOY_DIR/rzv2h-rdk/                          # rzv2h-rdk-rt/ with KERNEL_VARIANT=preempt-rt
+├── boot/Image
+├── boot/dtb/renesas/rzv2h-rdk-{ver1,ver101}.dtb
+├── boot/dtb/renesas/overlays/rzv2h-rdk-*.dtbo
+├── boot/uEnv.txt                              # ipl_build/uEnv.txt
+├── boot/{bl2_bp_esd,fip}-rzv2h-rdk-<ver>.bin  # IPL of IPL_BOARDS, for flashing
+├── usr/lib/modules/<release>/                 # in-tree + extra/ (out-of-tree), debug-stripped
+└── deploy-info.txt                            # flavour, release, sources, date
+```
+
+- `KERNEL_VARIANT` selects the flavour, as for the kernel build. The kernel is deployed only if
+  its `.config` and `Image` are of that flavour, and the modules only if every `.ko` of
+  `lib/modules/<release>` has the matching vermagic (`preempt` / `preempt_rt`), so an RT and a
+  non-RT build never end up in the same tree.
+- Anything not built (kernel, modules, the IPL of a board) is skipped with a message; the
+  command fails only if there is nothing at all to deploy.
+- The output directory is recreated on every run. `KBUILD_OUTPUT` is honoured for a kernel
+  built out of tree. `DEPLOY_STRIP=0` keeps the module debug info.
+
+Copy it to the board with `rsync -a --exclude deploy-info.txt DEPLOY_DIR/rzv2h-rdk/ root@<board>:/`
+and reboot; flash the IPL as in `ipl_build/README.md`.
 
 ## config.ini
 
@@ -110,3 +141,4 @@ Review it before a build. Every setting can also be overridden from the environm
 | `IPL_BOARDS` | IPL boards: `ver1` and/or `ver101` (default `ver101`) |
 | `IPL_WORK_DIR` / `IPL_OUT_DIR` | TF-A/U-Boot sources and IPL output |
 | `IPL_FEATURES_FILE` / `IPL_FEATURES` | Multi-OS options file, or the options themselves (default `ipl_build/machine-features.conf`) |
+| `DEPLOY_DIR` | output of `deploy` (default `$WORKDIR/deploy`) |

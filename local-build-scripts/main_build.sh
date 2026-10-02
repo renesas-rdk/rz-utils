@@ -60,6 +60,7 @@ case ${1} in
 		"${SCRIPT_DIR}/build_kernel.sh" "all" || exit 1
 		run_kernel_modules "install" || exit 1
 		run_ipl "all" || exit 1
+		"${SCRIPT_DIR}/deploy.sh" || exit 1
 		;;
 	"clean-all")
 		[ -z "${2:-}" ] || show_help
@@ -77,6 +78,10 @@ case ${1} in
 		;;
 	"ipl")
 		run_ipl "${2:-all}" || exit 1
+		;;
+	"deploy")
+		[ -z "${2:-}" ] || show_help
+		"${SCRIPT_DIR}/deploy.sh" || exit 1
 		;;
 	*)
 		show_help
