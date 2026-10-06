@@ -12,6 +12,8 @@ for _v in WORKDIR KERNEL_DIR KBUILD_OUTPUT EXT_MODULES_SRC_DIR KERNEL_MODULES_OU
 done
 unset _v
 
+[ -n "${WORKDIR:-}" ] && { mkdir -p "${WORKDIR}" || exit 1; }
+
 # GIT_SHALLOW=0: fetch the full history of a shallow tree (no-op otherwise)
 git_unshallow() {
 	local dir="$1"

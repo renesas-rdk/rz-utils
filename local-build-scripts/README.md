@@ -132,7 +132,7 @@ Review it before a build. Every setting can also be overridden from the environm
 
 | Setting | Use |
 |---|---|
-| `WORKDIR` | base directory of the sources and outputs below (default `/workspace/workspace`) |
+| `WORKDIR` | base directory of the sources and outputs below (default `workspace/` at the top of this repo, ignored by git) |
 | `KERNEL_DIR` | Linux kernel source, cloned from `KERNEL_REPO` / `KERNEL_BRANCH` if missing (never pulled or reset afterwards) |
 | `KERNEL_SRCREV` | optional: pin the kernel to a commit (checked out with `-f`, local changes are lost) |
 | `KERNEL_VARIANT` | optional: merge `kernel-config/<name>.config` on top of `renesas_defconfig`, e.g. `preempt-rt` |
